@@ -88,7 +88,7 @@ window.AuthorizationTokens = (() => {
               if (
                 !(await confirmAction(
                   "撤销授权 Token",
-                  "由此 Token 派生的 OAuth 访问与刷新权限将失效，定时撤单任务会停止执行。",
+                  "此 Token 的 Bearer 访问及派生的 OAuth 令牌将失效，定时撤单任务会停止执行。",
                 ))
               )
                 return;

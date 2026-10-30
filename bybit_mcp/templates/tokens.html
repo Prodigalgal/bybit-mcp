@@ -11,7 +11,8 @@
     </div>
   </div>
   <div class="alert">
-    权限按连接分别配置；缩减、撤销和到期对后续调用生效。增加权限后，客户端需要重新授权。
+    权限按连接分别配置；缩减、撤销和到期对后续调用生效。OAuth
+    增加权限后须重新授权；Bearer 按 Token 的当前配置生效。
   </div>
   <div id="tokens-list" class="stack"></div>
 </section>
@@ -74,7 +75,7 @@
 </dialog>
 <dialog id="token-secret-dialog" class="token-dialog">
   <h2>授权 Token 已生成</h2>
-  <p>完整 Token 只显示这一次，请保存后用于 OAuth 授权。</p>
+  <p>完整 Token 只显示这一次，请保存后用于 OAuth 授权或直接 Bearer 接入。</p>
   <label for="generated-token">授权 Token</label
   ><textarea
     id="generated-token"
