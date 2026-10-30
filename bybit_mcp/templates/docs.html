@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>接入说明 · Bybit MCP</title>
+    <link rel="stylesheet" href="{{ asset_url('app.css') }}" />
+  </head>
+  <body class="docs-body">
+    <main class="docs">
+      <div class="brand"><span class="brand-mark">B</span> BYBIT / MCP</div>
+      <h1>Bybit V5，连接到你的 AI 客户端。</h1>
+      <p>
+        将下面的 Streamable HTTP 地址添加到支持 OAuth 的 MCP 客户端。ChatGPT
+        中创建自定义应用时，选择 OAuth 认证。
+      </p>
+      <pre>{{url}}/mcp</pre>
+      <p>
+        服务支持 OAuth 2.1 授权码、PKCE S256、CIMD
+        客户端元数据、动态客户端注册、资源绑定、刷新和撤销。先在后台录入账户密钥并生成授权
+        Token；OAuth 页面只输入 Token，验证可用操作后批准。API Key 和 Secret
+        不会返回给 MCP 客户端。
+      </p>
+      <h2>先用 Demo</h2>
+      <ol>
+        <li>
+          登录 Bybit 主站，切换到 Demo Trading，在模拟账户中创建 API 密钥。
+        </li>
+        <li>
+          在后台“账户连接”录入 Demo 密钥，再到“授权
+          Token”选择环境、具体连接、允许操作和有效期（可设无限期）。
+        </li>
+        <li>
+          连接 MCP，在 OAuth 页面填写授权 Token，验证回显后批准。调用
+          <code>bybit_list_connections</code> 与
+          <code>bybit_get_profile</code> 确认环境；调用
+          <code>bybit_get_wallet</code> 查询余额。
+        </li>
+        <li>
+          使用
+          <code>bybit_get_instruments</code>
+          检查精确合约，再通过下单工具提交。API
+          接受订单后，请查询订单或成交确认状态。
+        </li>
+      </ol>
+      <p>
+        Demo 与 Testnet 不通用。Demo 只开放 Bybit 官方支持的接口；不支持 WS
+        Trade，交易通过 REST 完成。
+      </p>
+      <h2>多环境与多密钥</h2>
+      <p>
+        一个 Token
+        可以绑定多个环境和多组密钥，并按连接单独配置权限类别及具体操作。多连接授权的写入调用必须传入
+        <code>connection_id</code
+        >；默认连接只用于读取。后台扩大权限后，客户端须重新授权；缩减、到期、撤销则对后续调用生效。
+      </p>
+      <p>
+        无限期指授权 Token 的有效期。OAuth
+        访问令牌仍为短期，并通过刷新轮换续期。Token 不可直接作为管理登录凭证或
+        MCP Bearer。定时撤单要求 Token、OAuth
+        授权和相关连接持续有效，失效后的未成交委托须在后台处理。
+      </p>
+      <h2>接口与权限</h2>
+      <p>
+        当前目录收录 {{count}} 个 V5 REST 接口。常用功能独立暴露，其余通过
+        <code>bybit_search_endpoints</code>、<code
+          >bybit_describe_endpoint</code
+        >
+        和按权限区分的
+        <code>bybit_rest_*</code>
+        工具调用。接口目录覆盖与真实账户逐接口测试是不同的验证范围。
+      </p>
+      {% for key,label in scopes.items() %}
+      <p><code>{{key}}</code> — {{label}}</p>
+      {% endfor %}
+      <p>
+        支持公共 / 私有 WebSocket 限时快照，以及实盘和测试网 WS Trade。TradFi /
+        MT5 产品如 ORCL.s 使用不同产品体系，不能用同名 V5 合约替代。
+      </p>
+      <p>
+        <a href="https://bybit-exchange.github.io/docs/v5/intro"
+          >Bybit V5 官方文档 ↗</a
+        >
+        ·
+        <a href="https://bybit-exchange.github.io/docs/v5/demo"
+          >Demo 官方说明 ↗</a
+        >
+        · <a href="/admin">管理控制台 →</a>
+      </p>
+    </main>
+  </body>
+</html>

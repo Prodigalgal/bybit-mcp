@@ -1,0 +1,210 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bybit-mcp
+  labels:
+    app.kubernetes.io/name: bybit-mcp
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: '-4'
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: bybit-mcp-sydney-local
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: '-3'
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: bybit-mcp-sydney-data
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: '-2'
+spec:
+  capacity:
+    storage: 2Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: bybit-mcp-sydney-local
+  local:
+    path: /var/lib/bybit-mcp/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - bybit-worker
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bybit-mcp-sydney-data
+  namespace: bybit-mcp
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    argocd.argoproj.io/sync-wave: '-1'
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: bybit-mcp-sydney-local
+  volumeName: bybit-mcp-sydney-data
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bybit-mcp
+  namespace: bybit-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: bybit-mcp
+  template:
+    metadata:
+      labels:
+        app: bybit-mcp
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: bybit-worker
+      imagePullSecrets:
+      - name: registry-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: app
+        image: registry.example.invalid/bybit-mcp:gitops
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: bybit-mcp-env
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 160Mi
+          limits:
+            cpu: '1'
+            memory: 768Mi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          failureThreshold: 24
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          periodSeconds: 30
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: bybit-mcp-sydney-data
+      - name: tmp
+        emptyDir:
+          sizeLimit: 64Mi
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bybit-mcp
+  namespace: bybit-mcp
+spec:
+  selector:
+    app: bybit-mcp
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bybit-mcp-https
+  namespace: bybit-mcp
+spec:
+  parentRefs:
+  - name: application-gateway
+    namespace: gateway-system
+    sectionName: https
+    group: gateway.networking.k8s.io
+    kind: Gateway
+  hostnames:
+  - bybit-mcp.example.invalid
+  rules:
+  - timeouts:
+      request: 60s
+      backendRequest: 55s
+    backendRefs:
+    - name: bybit-mcp
+      port: 8000
+      group: ''
+      kind: Service
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bybit-mcp-http-redirect
+  namespace: bybit-mcp
+spec:
+  parentRefs:
+  - name: application-gateway
+    namespace: gateway-system
+    sectionName: http
+    group: gateway.networking.k8s.io
+    kind: Gateway
+  hostnames:
+  - bybit-mcp.example.invalid
+  rules:
+  - filters:
+    - type: RequestRedirect
+      requestRedirect:
+        scheme: https
+        statusCode: 301
+    matches:
+    - path:
+        type: PathPrefix
+        value: /

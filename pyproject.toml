@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bybit-v5-mcp"
+version = "0.3.1"
+description = "OAuth protected Bybit V5 MCP gateway with a token authenticated admin console"
+readme = "README.md"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[project.scripts]
+bybit-mcp = "bybit_mcp.app:main"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["bybit_mcp*"]
+
+[tool.setuptools.package-data]
+bybit_mcp = ["catalog.json", "templates/*.html", "static/*.css", "static/*.js"]

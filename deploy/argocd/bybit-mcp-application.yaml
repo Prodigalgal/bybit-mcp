@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bybit-mcp
+  namespace: argocd
+spec:
+  project: bybit-mcp
+  source:
+    repoURL: git@github.com:YOUR_ORG/YOUR_GITOPS_REPOSITORY.git
+    targetRevision: main
+    path: bybit-mcp
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bybit-mcp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 2m

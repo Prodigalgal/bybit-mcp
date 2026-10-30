@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{csrf}}" />
+    <title>控制台 · Bybit MCP</title>
+    <link rel="stylesheet" href="{{ asset_url('app.css') }}" />
+    <link rel="stylesheet" href="{{ asset_url('trading.css') }}" />
+    <script defer src="{{ asset_url('app.js') }}"></script>
+    <script defer src="{{ asset_url('trading.js') }}"></script>
+    <script defer src="{{ asset_url('tokens.js') }}"></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#overview"
+        ><span class="brand-mark">B</span> BYBIT
+        <span class="muted">/ MCP</span></a
+      >
+      <div class="workspace-label">
+        WORKSPACE <span class="pill">PRIVATE</span>
+      </div>
+      <nav aria-label="主导航">
+        <a href="#overview" data-page="overview"><span>◈</span> 总览</a
+        ><a href="#connections" data-page="connections"
+          ><span>⇄</span> 账户连接 <small id="nav-count">0</small></a
+        ><a href="#explorer" data-page="explorer"><span>⌘</span> API 浏览器</a
+        ><a href="#trading" data-page="trading"><span>↗</span> USDT 交易</a
+        ><a href="#tokens" data-page="tokens"><span>⚿</span> 授权 Token</a
+        ><a href="#access" data-page="access"><span>◎</span> 授权与审计</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <p>BYBIT V5 GATEWAY <span id="version">v0.1.0</span></p>
+        <a href="/docs" target="_blank" rel="noopener">接入文档 ↗</a
+        ><button id="logout" class="text-button">退出登录</button>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <span class="breadcrumb"
+          >工作空间 <span>/</span> <strong id="page-crumb">总览</strong></span
+        >
+        <div class="topbar-right">
+          <span class="live-tag"><i></i> 服务在线</span
+          ><span class="admin-avatar">A</span>
+        </div>
+      </header>
+      <main class="content">
+        <div id="toast" role="status" class="toast" hidden></div>
+        <section data-view="overview">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">TRADING INFRASTRUCTURE</div>
+              <h1>MCP 服务概览</h1>
+              <p>管理账户连接、接口权限与客户端授权。</p>
+            </div>
+            <a href="#connections" class="primary button">＋ 添加账户</a>
+          </div>
+          <div class="metrics">
+            <article class="metric">
+              <span>V5 REST 接口</span><strong id="metric-endpoints">—</strong
+              ><small>基于官方文档生成目录</small>
+            </article>
+            <article class="metric">
+              <span>Demo 可用接口</span><strong id="metric-demo">—</strong
+              ><small>公共行情与受支持私有接口</small>
+            </article>
+            <article class="metric">
+              <span>账户连接</span><strong id="metric-profiles">—</strong
+              ><small>Demo / Testnet / Mainnet</small>
+            </article>
+            <article class="metric">
+              <span>有效 OAuth 授权</span><strong id="metric-grants">—</strong
+              ><small>随时可撤销访问</small>
+            </article>
+          </div>
+          <div class="overview-grid">
+            <article class="panel connect-panel">
+              <div class="panel-heading">
+                <h2>连接你的 AI 工作流</h2>
+                <span class="pill amber">OAUTH 2.1</span>
+              </div>
+              <p class="muted">
+                在支持 OAuth 的客户端中添加此 MCP
+                地址，完成账户授权后即可调用工具。
+              </p>
+              <div class="copy-field">
+                <code id="mcp-url">—</code
+                ><button class="secondary" id="copy-url">复制</button>
+              </div>
+              <div class="steps">
+                <div><b>01</b><span>添加 MCP 地址</span></div>
+                <div><b>02</b><span>选择账户环境</span></div>
+                <div><b>03</b><span>授权所需权限</span></div>
+              </div>
+              <a href="/docs" class="accent-link" target="_blank" rel="noopener"
+                >查看完整接入说明 ↗</a
+              >
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <h2>服务状态</h2>
+                <span class="status-dot"></span>
+              </div>
+              <dl class="status-list">
+                <div>
+                  <dt>传输协议</dt>
+                  <dd>Streamable HTTP</dd>
+                </div>
+                <div>
+                  <dt>密钥存储</dt>
+                  <dd>Fernet 加密</dd>
+                </div>
+                <div>
+                  <dt>MCP 工具</dt>
+                  <dd id="tool-count">—</dd>
+                </div>
+                <div>
+                  <dt>接口目录版本</dt>
+                  <dd id="catalog-rev">—</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+
+          <div class="subtle-note" id="verification"></div>
+        </section>
+        <section data-view="connections" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">ACCOUNT CONNECTIONS</div>
+              <h1>账户连接</h1>
+              <p>按环境管理密钥和权限，使用对应账户生成的 API Key。</p>
+            </div>
+          </div>
+          <div class="split-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <h2>添加连接</h2>
+                <span class="pill amber">默认 DEMO</span>
+              </div>
+              <form id="connection-form">
+                <div class="form-grid">
+                  <div>
+                    <label for="connection-name">连接名称</label
+                    ><input
+                      id="connection-name"
+                      name="name"
+                      placeholder="我的模拟账户"
+                      required
+                      maxlength="100"
+                    />
+                  </div>
+                  <div>
+                    <label for="connection-env">账户环境</label
+                    ><select id="connection-env" name="environment">
+                      <option value="demo">Demo 模拟交易（推荐）</option>
+                      <option value="testnet">
+                        Testnet 测试网（开发调试）
+                      </option>
+                      <option value="mainnet">Mainnet 实盘</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="alert" id="connection-note">
+                  请在 Bybit 主站切换到 Demo Trading，再创建独立 API 密钥。
+                </div>
+                {% if outbound_ip %}
+                <p class="small muted">
+                  如在 Bybit 绑定 IP，请填写服务出口
+                  <code>{{outbound_ip}}</code>。
+                </p>
+                {% endif %}<label for="connection-key">API Key</label
+                ><input
+                  id="connection-key"
+                  name="api_key"
+                  type="password"
+                  autocomplete="off"
+                  required
+                /><label for="connection-secret">API Secret / RSA 私钥</label
+                ><textarea
+                  id="connection-secret"
+                  name="api_secret"
+                  rows="2"
+                  class="secret-field"
+                  autocomplete="off"
+                  required
+                  spellcheck="false"
+                ></textarea
+                ><label class="check"
+                  ><input type="checkbox" name="usdt_only" checked />仅允许 USDT
+                  合约交易</label
+                >
+                <div class="section-label">允许的权限</div>
+                <div id="scope-options" class="scope-options"></div>
+                <button class="primary full" type="submit">
+                  验证并保存连接 →
+                </button>
+                <p class="small muted">
+                  只有通过对应环境的账户验证后才会保存。密钥不会回显，也不会写入审计日志。
+                </p>
+              </form>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <h2>已连接账户</h2>
+                <button class="secondary" id="refresh-profiles">刷新</button>
+              </div>
+              <div id="profiles-list" class="stack"></div>
+            </article>
+          </div>
+        </section>
+        <section data-view="explorer" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">API EXPLORER</div>
+              <h1>探索完整 V5 API</h1>
+              <p>按功能搜索官方接口，查看参数，再通过选定账户发起请求。</p>
+            </div>
+          </div>
+          <div class="explorer-grid">
+            <article class="panel">
+              <label for="endpoint-query">搜索接口</label
+              ><input
+                id="endpoint-query"
+                type="search"
+                placeholder="例如：order、wallet、transfer"
+              />
+              <div class="filter-row">
+                <select id="endpoint-group" aria-label="接口分类">
+                  <option value="">所有分类</option></select
+                ><label class="check"
+                  ><input id="demo-filter" type="checkbox" />仅 Demo</label
+                >
+              </div>
+              <p class="small muted" id="endpoint-total">—</p>
+              <div id="endpoint-list" class="endpoint-list"></div>
+            </article>
+            <article class="panel">
+              <div id="endpoint-detail">
+                <div class="empty-state">
+                  <span>⌘</span>
+                  <h3>选择一个接口</h3>
+                  <p>接口参数和官方文档会显示在这里。</p>
+                </div>
+              </div>
+              <form id="explorer-form" hidden>
+                <label for="explorer-profile">使用账户</label
+                ><select
+                  id="explorer-profile"
+                  class="profile-select"
+                  required
+                ></select
+                ><label for="explorer-params">请求参数 · JSON</label
+                ><textarea
+                  id="explorer-params"
+                  class="code-input"
+                  rows="12"
+                  spellcheck="false"
+                >
+{}</textarea
+                ><button class="primary" type="submit">发送请求 →</button>
+              </form>
+              <pre id="explorer-result" class="result" hidden></pre>
+            </article>
+          </div>
+        </section>
+        {% include "trading.html" %} {% include "tokens.html" %}
+        <section data-view="access" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">ACCESS & ACTIVITY</div>
+              <h1>授权与审计</h1>
+              <p>查看客户端授权，及时撤销访问；日志只记录操作与结果。</p>
+            </div>
+            <button id="refresh-audit" class="secondary">刷新记录 ↻</button>
+          </div>
+          <article class="panel">
+            <div class="panel-heading"><h2>OAuth 授权</h2></div>
+            <div id="grants-list" class="stack"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading">
+              <h2>最近操作</h2>
+              <span class="pill">最多显示 80 条</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>账户</th>
+                    <th>操作</th>
+                    <th>结果</th>
+                    <th>说明</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-list"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+      <footer class="footer">
+        <span>BYBIT MCP CONSOLE</span><span>独立集成服务 · Bybit V5 API</span>
+      </footer>
+    </div>
+    <dialog id="connection-settings-dialog">
+      <form id="connection-settings-form">
+        <div class="eyebrow">CONNECTION SETTINGS</div>
+        <h2>账户连接设置</h2>
+        <label for="settings-name">连接名称</label
+        ><input id="settings-name" required maxlength="100" /><label
+          class="check"
+          ><input id="settings-usdt" type="checkbox" />仅允许 USDT
+          合约交易（Demo 始终启用）</label
+        >
+        <div id="settings-scopes" class="scope-options"></div>
+        <p class="small muted">
+          扩展连接权限不会自动扩大现有 OAuth
+          令牌的授权范围。客户端需要重新授权新增权限。
+        </p>
+        <div class="button-row">
+          <button id="settings-cancel" type="button" class="secondary">
+            取消</button
+          ><button class="primary" type="submit">保存设置</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="confirm-dialog">
+      <form method="dialog">
+        <div class="eyebrow">CONFIRM ACTION</div>
+        <h2 id="confirm-title">确认操作</h2>
+        <p id="confirm-message"></p>
+        <div class="button-row">
+          <button value="cancel" class="secondary">取消</button
+          ><button value="ok" class="primary">确认执行</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

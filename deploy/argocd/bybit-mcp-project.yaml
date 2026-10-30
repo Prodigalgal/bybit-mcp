@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bybit-mcp
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '-1'
+spec:
+  description: Bybit MCP runtime with protected local storage
+  sourceRepos:
+    - git@github.com:YOUR_ORG/YOUR_GITOPS_REPOSITORY.git
+  destinations:
+    - namespace: bybit-mcp
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: ''
+      kind: PersistentVolume
+    - group: storage.k8s.io
+      kind: StorageClass

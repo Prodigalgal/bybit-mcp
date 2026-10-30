@@ -1,0 +1,596 @@
+<section data-view="trading" hidden>
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">ORDER WORKSPACE</div>
+      <h1>USDT 挂单工作台</h1>
+      <p>预览委托、管理成交与仓位，跟踪每一次订单状态。</p>
+    </div>
+    <div class="heading-actions">
+      <button id="t-open-demo-funds" class="secondary">申请模拟资金</button
+      ><button id="t-open-leverage" class="secondary">设置杠杆</button>
+    </div>
+  </div>
+  <div class="trading-context panel">
+    <div>
+      <label for="trade-profile">交易账户</label
+      ><select id="trade-profile" class="profile-select" required></select>
+    </div>
+    <div>
+      <label for="trade-symbol">精确 USDT 合约代码</label
+      ><input
+        id="trade-symbol"
+        value="XAUUSDT"
+        pattern="[A-Z0-9_]+USDT"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <button id="t-load-context" class="primary">载入合约</button>
+    <span id="t-environment" class="pill">未选择账户</span>
+    <div id="t-context-status" class="small muted" role="status">
+      请先选择已验证的账户。
+    </div>
+  </div>
+  <div id="t-market" class="trade-market-strip" hidden>
+    <div><small>最新成交</small><strong id="t-last">—</strong></div>
+    <div><small>标记价格</small><strong id="t-mark">—</strong></div>
+    <div><small>买一 / 卖一</small><strong id="t-spread">—</strong></div>
+    <div><small>数量步长 / 价格步长</small><strong id="t-steps">—</strong></div>
+    <div>
+      <small>账户实际杠杆</small><strong id="t-actual-leverage">—</strong>
+    </div>
+    <div><small>USDT 钱包余额</small><strong id="t-wallet">—</strong></div>
+  </div>
+  <div class="trading-workspace">
+    <article class="panel order-entry-panel">
+      <div class="workspace-tabs" role="tablist" aria-label="委托编辑方式">
+        <button
+          class="active"
+          id="t-single-tab"
+          role="tab"
+          aria-selected="true"
+        >
+          单笔委托</button
+        ><button id="t-batch-tab" role="tab" aria-selected="false">
+          分批挂单
+        </button>
+      </div>
+      <form id="trade-form">
+        <div class="form-grid">
+          <div>
+            <label for="t-kind">订单类型</label
+            ><select id="t-kind">
+              <option value="limit">限价单</option>
+              <option value="market">市价单</option>
+              <option value="conditional_limit">条件限价单</option>
+              <option value="conditional_market">条件市价单</option>
+            </select>
+          </div>
+          <div>
+            <label for="t-side">买卖方向</label
+            ><select id="t-side">
+              <option value="Buy">Buy · 买入</option>
+              <option value="Sell">Sell · 卖出</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="t-amount-mode">数量计算方式</label
+            ><select id="t-amount-mode">
+              <option value="qty">基础资产数量</option>
+              <option value="notional">名义金额（USDT）</option>
+              <option value="margin">保证金预算（USDT）</option>
+            </select>
+          </div>
+          <div>
+            <label for="t-amount" id="t-amount-label">基础资产数量</label
+            ><input
+              id="t-amount"
+              inputmode="decimal"
+              required
+              placeholder="按合约数量步长填写"
+            />
+          </div>
+        </div>
+        <p class="small muted" id="t-sizing-note">
+          按基础资产计量；预览时校验数量步长和最小金额。
+        </p>
+        <div id="t-limit-fields">
+          <label for="t-price">委托价格（USDT）</label
+          ><input id="t-price" inputmode="decimal" required />
+          <div class="price-shortcuts">
+            <button type="button" data-fill-price="bid1Price">取买一</button
+            ><button type="button" data-fill-price="ask1Price">取卖一</button
+            ><button type="button" data-fill-price="lastPrice">取最新价</button>
+          </div>
+          <label for="t-tif">委托有效方式</label
+          ><select id="t-tif">
+            <option value="PostOnly">PostOnly · 只挂单</option>
+            <option value="GTC">GTC · 持续有效</option>
+            <option value="IOC">IOC · 立即成交，撤销剩余</option>
+            <option value="FOK">FOK · 立即全部成交</option>
+          </select>
+        </div>
+        <div id="t-trigger-fields" class="form-subsection" hidden>
+          <div class="section-label">条件触发</div>
+          <label for="t-trigger-price">触发价格</label
+          ><input id="t-trigger-price" inputmode="decimal" />
+          <div class="form-grid">
+            <div>
+              <label for="t-trigger-by">触发依据</label
+              ><select id="t-trigger-by">
+                <option value="MarkPrice">标记价格</option>
+                <option value="LastPrice">最新成交价</option>
+                <option value="IndexPrice">指数价格</option>
+              </select>
+            </div>
+            <div>
+              <label for="t-trigger-direction">触发方向</label
+              ><select id="t-trigger-direction">
+                <option value="auto">根据当前价格判断</option>
+                <option value="1">上涨至触发价</option>
+                <option value="2">下跌至触发价</option>
+              </select>
+            </div>
+          </div>
+          <p class="small muted">
+            触发时才校验保证金，可用资金不足时可能被拒绝。
+          </p>
+        </div>
+        <div id="t-slippage-fields" hidden>
+          <label for="t-slippage">允许滑点百分比（可选）</label
+          ><input
+            id="t-slippage"
+            inputmode="decimal"
+            placeholder="0.01–10，仅普通市价单"
+          />
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="t-position-idx">持仓索引</label
+            ><select id="t-position-idx">
+              <option value="auto">按账户模式自动判断</option>
+              <option value="0">0 · 单向持仓</option>
+              <option value="1">1 · 双向多仓</option>
+              <option value="2">2 · 双向空仓</option>
+            </select>
+          </div>
+          <div>
+            <label for="t-expiry">到期撤单</label
+            ><select id="t-expiry">
+              <option value="0">不设到期</option>
+              <option value="60">1 分钟</option>
+              <option value="180">3 分钟</option>
+              <option value="300">5 分钟</option>
+              <option value="900">15 分钟</option>
+              <option value="1800">30 分钟</option>
+              <option value="3600">1 小时</option>
+            </select>
+          </div>
+        </div>
+        <label class="check"
+          ><input id="t-reduce-only" type="checkbox" />只减仓（Reduce
+          only）</label
+        ><label class="check"
+          ><input id="t-close-trigger" type="checkbox" />触发平仓保护（Close on
+          trigger）</label
+        >
+        <details id="t-bracket">
+          <summary>附带止盈 / 止损</summary>
+          <label for="t-tpsl-mode">止盈止损模式</label
+          ><select id="t-tpsl-mode">
+            <option value="Full">Full · 对应仓位，市价执行</option>
+            <option value="Partial">Partial · 按实际成交数量，支持限价</option>
+          </select>
+          {% for prefix, title in [('tp','止盈'),('sl','止损')] %}
+          <div class="form-subsection">
+            <div class="section-label">{{title}}</div>
+            <div class="form-grid">
+              <div>
+                <label for="t-{{prefix}}-value">{{title}}目标（可选）</label
+                ><input id="t-{{prefix}}-value" inputmode="decimal" />
+              </div>
+              <div>
+                <label for="t-{{prefix}}-unit">目标单位</label
+                ><select id="t-{{prefix}}-unit">
+                  <option value="price">具体价格</option>
+                  <option value="percent">标的价格距离（%）</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div>
+                <label for="t-{{prefix}}-trigger">触发依据</label
+                ><select id="t-{{prefix}}-trigger">
+                  <option value="MarkPrice">标记价格</option>
+                  <option value="LastPrice">最新成交价</option>
+                  <option value="IndexPrice">指数价格</option>
+                </select>
+              </div>
+              <div>
+                <label for="t-{{prefix}}-type">触发后订单</label
+                ><select id="t-{{prefix}}-type">
+                  <option value="Market">市价</option>
+                  <option value="Limit">限价（需 Partial）</option>
+                </select>
+              </div>
+            </div>
+            <div id="t-{{prefix}}-limit-wrap" hidden>
+              <label for="t-{{prefix}}-limit">{{title}}限价</label
+              ><input id="t-{{prefix}}-limit" inputmode="decimal" />
+            </div>
+          </div>
+          {% endfor %}
+        </details>
+        <button class="primary full" id="t-preview-button" type="submit">
+          预览委托 →
+        </button>
+      </form>
+      <form id="t-batch-form" hidden>
+        <p class="small muted">
+          同一合约最多 20
+          笔。可添加不同价格的限价单；需要条件单或独立止盈止损时，可切换高级
+          JSON 编辑。
+        </p>
+        <div class="form-grid">
+          <div>
+            <label for="t-batch-side">统一方向</label
+            ><select id="t-batch-side">
+              <option value="Buy">Buy · 买入</option>
+              <option value="Sell">Sell · 卖出</option>
+            </select>
+          </div>
+          <div>
+            <label for="t-batch-tif">有效方式</label
+            ><select id="t-batch-tif">
+              <option value="PostOnly">PostOnly</option>
+              <option value="GTC">GTC</option>
+              <option value="IOC">IOC</option>
+              <option value="FOK">FOK</option>
+            </select>
+          </div>
+        </div>
+        <div id="t-batch-rows" class="batch-rows"></div>
+        <button type="button" id="t-add-batch-row" class="secondary full">
+          ＋ 添加一档
+        </button>
+        <label for="t-batch-expiry">每笔到期撤单</label
+        ><select id="t-batch-expiry">
+          <option value="0">不设到期</option>
+          <option value="60">1 分钟</option>
+          <option value="300">5 分钟</option>
+          <option value="900">15 分钟</option>
+          <option value="3600">1 小时</option>
+        </select>
+        <label class="check"
+          ><input type="checkbox" id="t-batch-advanced-toggle" />使用高级 JSON
+          草稿</label
+        >
+        <div id="t-batch-advanced" hidden>
+          <label for="t-batch-json">orders 数组（与单笔草稿字段一致）</label
+          ><textarea
+            id="t-batch-json"
+            class="code-input"
+            rows="12"
+            spellcheck="false"
+          >
+[]</textarea
+          >
+        </div>
+        <button class="primary full" type="submit">逐笔校验并预览 →</button>
+      </form>
+      <p class="small muted expiry-note">
+        到期撤单由服务端持久保存，页面关闭后继续处理。它撤销未成交部分，已成交仓位需通过止盈止损管理；服务中断或上游错误可能延迟处理。
+      </p>
+    </article>
+    <div class="trading-management">
+      <article class="panel" id="t-preview-panel" hidden>
+        <div class="panel-heading">
+          <h2>委托预览</h2>
+          <span id="t-preview-env" class="pill"></span>
+        </div>
+        <div id="t-preview-summary"></div>
+        <div id="t-preview-warnings"></div>
+        <div class="button-row">
+          <button id="t-discard-preview" class="secondary">放弃预览</button
+          ><button id="t-submit-preview" class="primary">确认提交</button>
+        </div>
+        <p class="small muted" id="t-preview-expiry"></p>
+      </article>
+      <div
+        id="t-operation-result"
+        class="order-operation-result"
+        role="status"
+        hidden
+      ></div>
+      <article class="panel orders-panel">
+        <div class="panel-heading">
+          <h2>账户订单与仓位</h2>
+          <div class="refresh-controls">
+            <label class="check"
+              ><input id="t-auto-refresh" type="checkbox" checked />5
+              秒刷新</label
+            ><button id="t-refresh-table" class="secondary">刷新</button>
+          </div>
+        </div>
+        <div class="workspace-tabs" role="tablist" aria-label="交易记录">
+          <button
+            data-trade-tab="orders"
+            class="active"
+            role="tab"
+            aria-selected="true"
+          >
+            当前委托</button
+          ><button data-trade-tab="positions" role="tab" aria-selected="false">
+            仓位</button
+          ><button data-trade-tab="history" role="tab" aria-selected="false">
+            历史订单</button
+          ><button data-trade-tab="executions" role="tab" aria-selected="false">
+            成交记录
+          </button>
+        </div>
+        <div id="t-table-status" class="small muted" role="status">
+          选择账户和合约后载入。
+        </div>
+        <div id="t-selection-actions" class="selection-actions">
+          <span id="t-selected-count">已选 0 笔</span
+          ><button id="t-batch-amend" class="secondary" disabled>
+            批量改单</button
+          ><button id="t-batch-cancel" class="secondary" disabled>
+            批量撤单</button
+          ><button id="t-cancel-symbol" class="text-button">
+            撤销当前合约全部委托
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="trading-table">
+            <thead id="t-table-head"></thead>
+            <tbody id="t-table-body"></tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button id="t-page-prev" class="secondary" disabled>上一页</button
+          ><span id="t-page-label" class="small muted">第 1 页</span
+          ><button id="t-page-next" class="secondary" disabled>下一页</button>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-heading">
+          <h2>提交核查与到期任务</h2>
+          <button id="t-refresh-managed" class="secondary">刷新</button>
+        </div>
+        <p class="small muted">
+          网络超时后，用原请求编号核查结果。重复确认同一份预览会返回既有结果。
+        </p>
+        <div id="t-submissions" class="stack"></div>
+        <details>
+          <summary>到期撤单任务</summary>
+          <div id="t-expiry-jobs" class="stack"></div>
+        </details>
+      </article>
+    </div>
+  </div>
+</section>
+<dialog id="t-amend-dialog" class="trade-dialog">
+  <form id="t-amend-form">
+    <div class="eyebrow">AMEND ORDER</div>
+    <h2>修改委托</h2>
+    <p id="t-amend-info" class="small muted"></p>
+    <div class="form-grid">
+      <div>
+        <label for="t-amend-price">委托价格（留空不修改）</label
+        ><input id="t-amend-price" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-amend-qty">委托总数量（含已成交）</label
+        ><input id="t-amend-qty" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-amend-trigger">条件触发价</label
+        ><input id="t-amend-trigger" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-amend-tp">止盈价（0 取消）</label
+        ><input id="t-amend-tp" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-amend-sl">止损价（0 取消）</label
+        ><input id="t-amend-sl" inputmode="decimal" />
+      </div>
+    </div>
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-amend-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">确认改单</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="t-batch-amend-dialog" class="trade-dialog">
+  <form id="t-batch-amend-form">
+    <div class="eyebrow">BATCH AMEND</div>
+    <h2>批量修改委托</h2>
+    <p class="small muted">
+      修改总数量或委托价格。每笔分别显示上游结果，部分失败不代表其他订单失败。
+    </p>
+    <div id="t-batch-amend-rows"></div>
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-batch-amend-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">确认批量改单</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="t-leverage-dialog" class="trade-dialog">
+  <form id="t-leverage-form">
+    <div class="eyebrow">POSITION LEVERAGE</div>
+    <h2>设置账户实际杠杆</h2>
+    <p id="t-leverage-note" class="small muted"></p>
+    <div class="form-grid">
+      <div>
+        <label for="t-buy-leverage">多仓杠杆</label
+        ><input id="t-buy-leverage" inputmode="decimal" required />
+      </div>
+      <div>
+        <label for="t-sell-leverage">空仓杠杆</label
+        ><input id="t-sell-leverage" inputmode="decimal" required />
+      </div>
+    </div>
+    <p class="small muted">
+      单向持仓模式下多空杠杆需一致。修改后会重新读取账户状态，并使已有预览失效。
+    </p>
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-leverage-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">确认设置</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="t-position-dialog" class="trade-dialog">
+  <form id="t-position-form">
+    <div class="eyebrow">POSITION PROTECTION</div>
+    <h2>仓位止盈止损与移动止损</h2>
+    <p id="t-position-info" class="small muted"></p>
+    <label for="t-pos-mode">止盈止损模式</label
+    ><select id="t-pos-mode">
+      <option value="Full">Full · 全仓市价</option>
+      <option value="Partial">Partial · 部分仓位</option>
+    </select>
+    <div class="form-grid">
+      <div>
+        <label for="t-pos-tp">止盈价（留空不修改，0 取消）</label
+        ><input id="t-pos-tp" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-pos-sl">止损价（留空不修改，0 取消）</label
+        ><input id="t-pos-sl" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="t-pos-tp-by">止盈触发依据</label
+        ><select id="t-pos-tp-by">
+          <option value="MarkPrice">标记价格</option>
+          <option value="LastPrice">最新成交价</option>
+          <option value="IndexPrice">指数价格</option>
+        </select>
+      </div>
+      <div>
+        <label for="t-pos-sl-by">止损触发依据</label
+        ><select id="t-pos-sl-by">
+          <option value="MarkPrice">标记价格</option>
+          <option value="LastPrice">最新成交价</option>
+          <option value="IndexPrice">指数价格</option>
+        </select>
+      </div>
+    </div>
+    <div id="t-pos-partial" hidden>
+      <label for="t-pos-size">部分止盈与止损数量（两者相同）</label
+      ><input id="t-pos-size" inputmode="decimal" />
+      <div class="form-grid">
+        <div>
+          <label for="t-pos-tp-type">止盈执行方式</label
+          ><select id="t-pos-tp-type">
+            <option value="Market">市价</option>
+            <option value="Limit">限价</option></select
+          ><label for="t-pos-tp-limit">止盈限价</label
+          ><input id="t-pos-tp-limit" inputmode="decimal" />
+        </div>
+        <div>
+          <label for="t-pos-sl-type">止损执行方式</label
+          ><select id="t-pos-sl-type">
+            <option value="Market">市价</option>
+            <option value="Limit">限价</option></select
+          ><label for="t-pos-sl-limit">止损限价</label
+          ><input id="t-pos-sl-limit" inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div>
+        <label for="t-pos-trailing">移动止损回撤距离（0 取消）</label
+        ><input
+          id="t-pos-trailing"
+          inputmode="decimal"
+          placeholder="绝对价格距离"
+        />
+      </div>
+      <div>
+        <label for="t-pos-active">移动止损激活价（可选）</label
+        ><input id="t-pos-active" inputmode="decimal" />
+      </div>
+    </div>
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-position-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">确认设置</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="t-close-dialog" class="trade-dialog">
+  <form id="t-close-form">
+    <div class="eyebrow">REDUCE ONLY CLOSE</div>
+    <h2>预览只减仓平仓单</h2>
+    <p id="t-close-info" class="small muted"></p>
+    <label for="t-close-percent">平仓比例</label
+    ><select id="t-close-percent">
+      <option value="100">100% 全部</option>
+      <option value="50">50%</option>
+      <option value="25">25%</option>
+    </select>
+    <p class="small muted">
+      按最新仓位数量计算，向下取数量步长。下一步展示市价只减仓订单，需再次确认提交。
+    </p>
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-close-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">生成平仓预览</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="t-funds-dialog" class="trade-dialog">
+  <form id="t-funds-form">
+    <div class="eyebrow">DEMO FUNDS</div>
+    <h2>申请模拟 USDT</h2>
+    <p class="small muted">
+      仅支持 Demo 账户。连接需启用资金权限，金额与频率受 Bybit Demo 限制。
+    </p>
+    <label for="t-funds-amount">申请数量（每次最多 100000 USDT）</label
+    ><input
+      id="t-funds-amount"
+      type="number"
+      min="1"
+      max="100000"
+      step="1"
+      value="10000"
+      required
+    />
+    <div class="button-row">
+      <button
+        type="button"
+        class="secondary"
+        data-close-dialog="t-funds-dialog"
+      >
+        取消</button
+      ><button class="primary" type="submit">确认申请</button>
+    </div>
+  </form>
+</dialog>

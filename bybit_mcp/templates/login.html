@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>登录 · Bybit MCP</title>
+    <link rel="stylesheet" href="{{ asset_url('app.css') }}" />
+  </head>
+  <body class="auth-body">
+    <main class="auth-card">
+      <a class="brand" href="/admin"
+        ><span class="brand-mark">B</span> BYBIT
+        <span class="muted">/ MCP</span></a
+      >
+      <div class="eyebrow">PRIVATE CONSOLE</div>
+      <h1>连接交易与智能。</h1>
+      <p class="muted">
+        使用管理 Token 登录控制台，配置账户、查看接口覆盖与授权记录。
+      </p>
+      {% if error %}
+      <div class="alert error" role="alert">{{error}}</div>
+      {% endif %}
+      <form method="post" action="/admin/login">
+        <label for="token">管理 Token</label
+        ><input
+          id="token"
+          name="token"
+          type="password"
+          required
+          autocomplete="current-password"
+          placeholder="输入管理 Token"
+        /><button class="primary full" type="submit">
+          进入控制台 <span>→</span>
+        </button>
+      </form>
+      <div class="auth-foot">
+        <span class="status-dot"></span> OAuth 2.1 · 加密存储
+      </div>
+      <a class="small muted" href="/docs">查看 MCP 接入说明 ↗</a>
+    </main>
+  </body>
+</html>

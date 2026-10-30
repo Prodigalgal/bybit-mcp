@@ -1,0 +1,119 @@
+name: Test, build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bybit-mcp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q --tb=short
+
+  release:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      IMAGE_REPOSITORY: ${{ secrets.IMAGE_REPOSITORY }}
+      GITOPS_REPOSITORY: ${{ secrets.GITOPS_REPOSITORY }}
+      DEPLOY_NODE_NAME: ${{ secrets.DEPLOY_NODE_NAME }}
+      GATEWAY_NAME: ${{ secrets.GATEWAY_NAME }}
+      PUBLIC_URL: ${{ secrets.PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ secrets.REGISTRY_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Build and push ARM64 image
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          build-args: SOURCE_COMMIT=${{ github.sha }}
+          tags: ${{ env.IMAGE_REPOSITORY }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=bybit-mcp
+          cache-to: type=gha,mode=min,scope=bybit-mcp
+          provenance: mode=max
+          sbom: true
+      - name: Configure GitOps deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.GITOPS_DEPLOY_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --connect-timeout 10 --max-time 30 \
+            -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/meta -o "$RUNNER_TEMP/github-meta.json"
+          python3 -c 'import json,sys; print("\n".join("github.com " + k for k in json.load(open(sys.argv[1]))["ssh_keys"]))' "$RUNNER_TEMP/github-meta.json" > ~/.ssh/known_hosts
+      - name: Promote digest into production YAML
+        id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user --break-system-packages PyYAML==6.0.3
+          git clone --depth 1 "git@github.com:${GITOPS_REPOSITORY}.git" gitops-checkout
+          git -C gitops-checkout config user.name bybit-mcp-ci
+          git -C gitops-checkout config user.email bybit-mcp-ci@users.noreply.github.com
+          for attempt in 1 2 3; do
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" != "$SOURCE_COMMIT" ]; then
+              echo 'A newer source commit exists; skipping this release.'
+              echo 'promoted=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            python3 scripts/promote_gitops.py --gitops gitops-checkout --digest "$IMAGE_DIGEST" --commit "$SOURCE_COMMIT"
+            kubectl kustomize gitops-checkout/bybit-mcp > "$RUNNER_TEMP/bybit-mcp-rendered.yaml"
+            git -C gitops-checkout add bybit-mcp
+            git -C gitops-checkout diff --cached --quiet || git -C gitops-checkout commit -m "bybit-mcp: release $SOURCE_COMMIT"
+            if git -C gitops-checkout push origin HEAD:main; then
+              echo 'promoted=true' >> "$GITHUB_OUTPUT"
+              echo "gitops_revision=$(git -C gitops-checkout rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git -C gitops-checkout fetch origin main
+            git -C gitops-checkout reset --hard origin/main
+          done
+          exit 1
+      - name: Wait for Argo rollout and verify public revision
+        if: steps.promote.outputs.promoted == 'true'
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          GITOPS_REVISION: ${{ steps.promote.outputs.gitops_revision }}
+        run: |
+          python3 scripts/verify_release.py --commit "$SOURCE_COMMIT" --digest "$IMAGE_DIGEST"
+          printf 'Source: `%s`\n\nImage: `%s`\n\nGitOps: `%s`\n' "$SOURCE_COMMIT" "$IMAGE_DIGEST" "$GITOPS_REVISION" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary SSH material
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

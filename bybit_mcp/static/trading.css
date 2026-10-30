@@ -1,0 +1,608 @@
+.trading-context {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(190px, 1fr) auto auto;
+  gap: 0 16px;
+  align-items: end;
+}
+.trading-context label {
+  margin-top: 0;
+}
+.trading-context > .primary {
+  height: 43px;
+  margin-bottom: 0;
+}
+.trading-context > .pill {
+  align-self: center;
+  justify-self: end;
+}
+.trading-context > #t-context-status {
+  grid-column: 1/-1;
+  margin-top: 15px;
+  overflow-wrap: anywhere;
+}
+.trade-market-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 4px 22px;
+}
+.trade-market-strip small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.trade-market-strip strong {
+  font-size: 12px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.trading-workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.order-entry-panel {
+  padding: 22px;
+}
+.trading-management {
+  min-width: 0;
+}
+.workspace-tabs {
+  display: flex;
+  gap: 7px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 18px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+.workspace-tabs button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 12px;
+  min-height: 35px;
+  padding: 7px 10px;
+  flex-shrink: 0;
+}
+.workspace-tabs button.active {
+  color: var(--accent);
+  border-color: #6b532c;
+  background: #342b1a;
+}
+.order-entry-panel .form-grid {
+  gap: 0 12px;
+}
+.order-entry-panel label {
+  font-size: 11px;
+}
+.order-entry-panel .form-grid label {
+  font-size: 10px;
+}
+.order-entry-panel input,
+.order-entry-panel select {
+  font-size: 12px;
+  padding: 10px;
+}
+.form-subsection {
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  margin-top: 15px;
+}
+.form-subsection .section-label {
+  margin-top: 7px;
+}
+.price-shortcuts {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+.price-shortcuts button {
+  background: #242a32;
+  color: #c0cad8;
+  padding: 3px 10px;
+  border: 1px solid #3c4654;
+  border-radius: 4px;
+  font-size: 10px;
+  min-height: 29px;
+}
+.expiry-note {
+  line-height: 1.85;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin: 24px 0 0;
+  font-size: 10px;
+}
+.order-entry-panel details > summary {
+  color: #c4ccd8;
+}
+.batch-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 19px;
+}
+.batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px;
+  gap: 8px;
+}
+.batch-row input {
+  font-size: 11px;
+  min-width: 0;
+}
+.remove-row {
+  width: 30px;
+  min-height: 40px;
+  background: #35272b;
+  color: #f1b8bd;
+  border: 1px solid #67434b;
+  border-radius: 5px;
+}
+.refresh-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.refresh-controls .check {
+  margin: 0;
+  font-size: 10px;
+}
+.refresh-controls button {
+  font-size: 10px;
+  padding: 6px 11px;
+  min-height: 32px;
+}
+.orders-panel {
+  padding: 21px;
+}
+.orders-panel .panel-heading h2 {
+  font-size: 14px;
+}
+.orders-panel .workspace-tabs {
+  gap: 3px;
+}
+.orders-panel .workspace-tabs button {
+  font-size: 11px;
+  padding: 7px 9px;
+}
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+.selection-actions .secondary {
+  font-size: 10px;
+  min-height: 31px;
+  padding: 5px 9px;
+}
+.selection-actions .text-button {
+  font-size: 9px;
+  margin-left: auto;
+  min-height: 30px;
+}
+.trading-table {
+  min-width: 690px;
+}
+.trading-table th {
+  font-size: 9px;
+  padding: 10px 8px;
+}
+.trading-table td {
+  font-size: 10px;
+  padding: 13px 8px;
+  vertical-align: top;
+}
+.trading-table td:nth-child(3) {
+  font-family: inherit;
+}
+.trading-table .row-actions {
+  white-space: normal;
+  min-width: 170px;
+}
+.row-actions button {
+  font-size: 9px;
+  min-height: 29px;
+  padding: 5px 8px;
+  margin: 0 5px 7px 0;
+}
+.order-identifier {
+  display: block;
+  font-size: 8px;
+  font-family: monospace;
+  max-width: 175px;
+  overflow-wrap: anywhere;
+}
+.trading-table .table-empty {
+  padding: 35px 10px;
+  text-align: center;
+  color: var(--muted);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 17px;
+}
+.pagination button {
+  font-size: 10px;
+  min-height: 31px;
+  padding: 5px 10px;
+}
+.pagination button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.preview-order {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.preview-order strong {
+  font-size: 12px;
+}
+.preview-order p {
+  margin: 7px 0;
+  font-size: 11px;
+}
+.preview-order code {
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+.preview-order + p {
+  margin-top: 17px;
+}
+#t-preview-summary > p {
+  font-size: 12px;
+}
+#t-preview-summary > p.small {
+  font-size: 10px;
+}
+#t-preview-warnings .alert {
+  margin-bottom: 8px;
+}
+.order-operation-result {
+  background: #1c2b24;
+  border: 1px solid #365e48;
+  border-radius: 9px;
+  padding: 17px 20px;
+  margin-bottom: 21px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.order-operation-result.error {
+  background: #342329;
+  border-color: #79515b;
+}
+.order-operation-result p {
+  margin-bottom: 10px;
+}
+.order-operation-result details {
+  margin-top: 12px;
+}
+.order-operation-result button {
+  font-size: 11px;
+}
+.managed-row {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #13171d;
+}
+.managed-row .connection-head strong {
+  font-size: 12px;
+}
+.managed-row p {
+  font-size: 10px;
+  margin: 8px 0;
+}
+.managed-row code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 9px;
+  color: #9ca8bc;
+}
+.managed-row button {
+  font-size: 10px;
+  padding: 5px 10px;
+  min-height: 31px;
+  margin: 8px 8px 0 0;
+}
+#t-expiry-jobs {
+  margin-top: 17px;
+}
+.positive {
+  color: var(--green);
+}
+.negative {
+  color: var(--red);
+}
+dialog.trade-dialog {
+  max-width: 650px;
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+dialog.trade-dialog h2 {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+.batch-amend-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 13px 0;
+}
+.batch-amend-row > p {
+  grid-column: 1/-1;
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+.batch-amend-row label {
+  margin-top: 9px;
+}
+.batch-amend-row input {
+  margin-top: 7px;
+}
+.trade-dialog .button-row {
+  position: sticky;
+  bottom: -30px;
+  background: #1d2129;
+  padding: 13px 0;
+  margin-bottom: -10px;
+}
+.trade-dialog p {
+  overflow-wrap: anywhere;
+}
+#t-operation-result .result {
+  max-height: 300px;
+}
+@media (min-width: 1700px) {
+  .trading-workspace {
+    grid-template-columns: 420px minmax(0, 1fr);
+  }
+  .order-entry-panel {
+    padding: 26px;
+  }
+}
+@media (max-width: 1180px) {
+  .trading-workspace {
+    grid-template-columns: minmax(290px, 340px) minmax(0, 1fr);
+    gap: 17px;
+  }
+  .order-entry-panel,
+  .orders-panel {
+    padding: 17px;
+  }
+  .trade-market-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 16px;
+  }
+  .trading-context {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  .trading-context > .pill {
+    grid-row: 2;
+    grid-column: 3;
+    margin-top: 13px;
+  }
+  .trading-context > #t-context-status {
+    grid-row: 2;
+    grid-column: 1/3;
+  }
+  .orders-panel .panel-heading {
+    flex-wrap: wrap;
+  }
+  .orders-panel .workspace-tabs button {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+  .selection-actions .text-button {
+    margin-left: 0;
+  }
+}
+@media (max-width: 980px) {
+  .trading-workspace {
+    grid-template-columns: 1fr;
+  }
+  .order-entry-panel {
+    padding: 23px;
+  }
+  .order-entry-panel form > .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .trading-context {
+    grid-template-columns: 1fr 1fr;
+  }
+  .trading-context > .primary {
+    margin-top: 14px;
+  }
+  .trading-context > .pill {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .trading-context > #t-context-status {
+    grid-column: 1/-1;
+    grid-row: 3;
+  }
+  .trade-market-strip {
+    padding-inline: 5px;
+  }
+  .trading-management > .panel {
+    padding: 21px;
+  }
+  .trading-table {
+    min-width: 760px;
+  }
+  .selection-actions .text-button {
+    margin-left: auto;
+  }
+}
+@media (max-width: 650px) {
+  .trading-context {
+    padding: 17px;
+    gap: 0 11px;
+  }
+  .trading-context label {
+    font-size: 10px;
+  }
+  .trading-context select,
+  .trading-context input {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
+  .trading-context > .primary {
+    font-size: 11px;
+    min-height: 36px;
+    height: 36px;
+  }
+  .trading-context .pill {
+    font-size: 8px;
+  }
+  .trade-market-strip {
+    grid-template-columns: 1fr 1fr;
+    gap: 15px 12px;
+    padding-bottom: 20px;
+  }
+  .trade-market-strip small {
+    font-size: 9px;
+  }
+  .trade-market-strip strong {
+    font-size: 11px;
+  }
+  .trading-workspace {
+    gap: 0;
+  }
+  .order-entry-panel {
+    padding: 18px;
+  }
+  .trading-management > .panel {
+    padding: 17px;
+  }
+  .orders-panel .workspace-tabs button {
+    font-size: 10px;
+  }
+  .refresh-controls {
+    gap: 8px;
+  }
+  .refresh-controls .check {
+    font-size: 9px;
+  }
+  .selection-actions {
+    gap: 7px;
+  }
+  .selection-actions .text-button {
+    margin-left: 0;
+    font-size: 9px;
+  }
+  .preview-order strong {
+    font-size: 11px;
+  }
+  .preview-order p {
+    font-size: 10px;
+  }
+  .trading-table {
+    min-width: 720px;
+  }
+  .order-operation-result {
+    padding: 15px;
+    font-size: 11px;
+  }
+  dialog.trade-dialog {
+    padding: 24px 20px;
+  }
+  .trade-dialog .form-grid {
+    gap: 0 12px;
+  }
+  .trade-dialog label {
+    font-size: 10px;
+  }
+  .trade-dialog input,
+  .trade-dialog select {
+    font-size: 12px;
+  }
+  .trade-dialog .button-row {
+    bottom: -24px;
+  }
+  .batch-row {
+    gap: 6px;
+  }
+  .batch-row input {
+    font-size: 10px;
+    padding: 9px;
+  }
+  .page-heading > div + button {
+    font-size: 10px;
+    padding: 7px 11px;
+    min-height: 34px;
+  }
+  .order-identifier {
+    font-size: 8px;
+  }
+}
+
+.heading-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.heading-actions button {
+  font-size: 11px;
+}
+@media (max-width: 650px) {
+  .heading-actions {
+    gap: 7px;
+    max-width: 130px;
+  }
+  .heading-actions button {
+    font-size: 9px;
+    padding: 7px 9px;
+    min-height: 32px;
+  }
+}
+
+#t-submissions {
+  max-height: 430px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+.order-entry-panel label {
+  font-size: 12px;
+}
+.order-entry-panel .form-grid label {
+  font-size: 11px;
+}
+.order-entry-panel input,
+.order-entry-panel select {
+  font-size: 13px;
+}
+@media (max-width: 650px) {
+  .order-entry-panel input,
+  .order-entry-panel select,
+  .trade-dialog input,
+  .trade-dialog select,
+  .trading-context input,
+  .trading-context select {
+    font-size: 16px;
+  }
+  .order-entry-panel label,
+  .order-entry-panel .form-grid label {
+    font-size: 11px;
+  }
+  .row-actions button {
+    min-height: 40px;
+  }
+  .price-shortcuts button {
+    min-height: 36px;
+  }
+  #t-submissions {
+    max-height: 400px;
+  }
+}

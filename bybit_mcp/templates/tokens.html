@@ -1,0 +1,90 @@
+<section data-view="tokens" hidden>
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">AUTHORIZATION TOKENS</div>
+      <h1>授权 Token</h1>
+      <p>指定可访问的环境、密钥连接与操作，再供 OAuth 授权使用。</p>
+    </div>
+    <div class="button-row">
+      <button id="refresh-tokens" class="secondary">刷新</button
+      ><button id="create-token" class="primary">生成 Token ＋</button>
+    </div>
+  </div>
+  <div class="alert">
+    权限按连接分别配置；缩减、撤销和到期对后续调用生效。增加权限后，客户端需要重新授权。
+  </div>
+  <div id="tokens-list" class="stack"></div>
+</section>
+<dialog id="token-policy-dialog" class="token-dialog">
+  <form id="token-policy-form">
+    <div class="panel-heading">
+      <h2 id="token-dialog-title">生成授权 Token</h2>
+      <button
+        type="button"
+        id="close-token-policy"
+        class="text-button"
+        aria-label="关闭"
+      >
+        ✕
+      </button>
+    </div>
+    <label for="token-name">名称</label
+    ><input
+      id="token-name"
+      maxlength="100"
+      required
+      placeholder="例如：Demo USDT 交易"
+    />
+    <div class="form-grid">
+      <div>
+        <label for="token-expiry">有效期</label
+        ><select id="token-expiry">
+          <option value="1">1 天</option>
+          <option value="7">7 天</option>
+          <option value="30" selected>30 天</option>
+          <option value="90">90 天</option>
+          <option value="unlimited">无限期</option>
+          <option value="custom">指定截止时间</option>
+        </select>
+      </div>
+      <div>
+        <label for="token-expires-at">截止时间（当前时区）</label
+        ><input id="token-expires-at" type="datetime-local" disabled />
+      </div>
+    </div>
+    <div class="section-label">允许访问的环境与密钥</div>
+    <p class="small muted">勾选具体连接后，分别配置权限类别与允许操作。</p>
+    <div id="token-bindings" class="stack"></div>
+    <label for="token-default">默认读取连接</label
+    ><select id="token-default">
+      <option value="">不指定（调用时选择）</option>
+    </select>
+    <p class="small muted">
+      授权多个连接时，所有交易及其他写入操作都必须指定
+      connection_id。定时撤单依赖 Token
+      持续有效；到期或撤销后须在后台处理未成交委托。
+    </p>
+    <div id="token-policy-error" class="alert error" role="alert" hidden></div>
+    <div class="button-row">
+      <button type="button" id="cancel-token-policy" class="secondary">
+        取消</button
+      ><button id="save-token-policy" class="primary">生成 Token</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="token-secret-dialog" class="token-dialog">
+  <h2>授权 Token 已生成</h2>
+  <p>完整 Token 只显示这一次，请保存后用于 OAuth 授权。</p>
+  <label for="generated-token">授权 Token</label
+  ><textarea
+    id="generated-token"
+    readonly
+    rows="3"
+    autocomplete="off"
+    spellcheck="false"
+  ></textarea>
+  <div class="button-row">
+    <button id="copy-generated-token" class="primary">复制 Token</button
+    ><button id="close-token-secret" class="secondary">已保存，关闭</button>
+  </div>
+</dialog>

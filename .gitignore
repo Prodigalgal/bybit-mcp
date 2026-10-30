@@ -1,0 +1,26 @@
+.venv/
+.cache/
+.env
+.private/
+data/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db*
+artifacts/
+*.egg-info/
+build/
+dist/
+
+# Private operator helpers and rendered environment-specific manifests
+scripts/backup.py
+scripts/check_live.py
+scripts/classify_credentials.py
+scripts/configure_dns.py
+scripts/connect_credentials.py
+scripts/deploy.py
+scripts/verify_demo.py
+scripts/authorization_browser_check.cjs
+scripts/browser_check.cjs
+scripts/trading_browser_check.cjs
+deploy/kubernetes.json
