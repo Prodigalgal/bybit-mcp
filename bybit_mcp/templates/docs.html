@@ -21,6 +21,10 @@
         Token；OAuth 页面只输入 Token，验证可用操作后批准。API Key 和 Secret
         不会返回给 MCP 客户端。
       </p>
+      <h2>直接 Bearer 接入</h2>
+      <p>支持自定义请求头的 MCP 客户端，可直接使用后台生成的授权 Token，无需 OAuth 登录。</p>
+      <pre>Authorization: Bearer bbm_auth_…</pre>
+      <p>环境、具体密钥、允许操作、有效期和撤销规则相同。OAuth 方式仍可使用；管理登录 Token 专用于后台。</p>
       <h2>先用 Demo</h2>
       <ol>
         <li>

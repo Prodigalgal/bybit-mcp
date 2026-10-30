@@ -88,7 +88,7 @@ def test_admin_token_management_hash_only_and_own_csrf(service):
     assert value["token"] not in json.dumps(listing) and "secret_hash" not in json.dumps(listing)
     assert value["token"] not in app.state.store.conn.execute("SELECT group_concat(data) FROM records").fetchone()[0]
     assert client.get("/admin/api/status", headers={"Authorization": "Bearer " + value["token"]}).status_code == 401
-    assert client.post("/mcp", headers={"Authorization": "Bearer " + value["token"]}, json={}).status_code == 401
+    assert not rpc(client, value["token"], "bybit_get_profile", {}).json()["result"]["isError"]
     client.post("/admin/login", data={"token": app.state.settings.admin_token})
     assert client.patch("/admin/api/authorization-tokens/" + value["id"], json={"name": "Changed"}).status_code == 403
     edited = client.patch("/admin/api/authorization-tokens/" + value["id"], json={"name": "Changed", "expires_at": time.time() + 300}, headers=headers)
@@ -228,12 +228,15 @@ async def test_ws_managed_cache_and_generic_rest_cannot_bypass_operation_policy(
     finally: principal_var.reset(ctx)
 
 
-@pytest.mark.parametrize("revoke", ["parent", "family", "expire"])
-async def test_expiry_jobs_obey_parent_and_family_revocation(desk, revoke):
+@pytest.mark.parametrize("mode,revoke", [("oauth", "parent"), ("oauth", "family"), ("oauth", "expire"), ("bearer", "parent"), ("bearer", "expire")])
+async def test_expiry_jobs_obey_parent_and_family_revocation(desk, mode, revoke):
     trading, p, exchange, _, app = desk
     pat = parent(app, [binding(p)])
-    issued = app.state.oauth.issue(p["id"], "job-test", p["scopes"], app.state.settings.resource, parent_token_id=pat["id"], bindings=[binding(p)])
-    principal = app.state.oauth.principal(issued["access_token"])
+    if mode == "oauth":
+        issued = app.state.oauth.issue(p["id"], "job-test", p["scopes"], app.state.settings.resource, parent_token_id=pat["id"], bindings=[binding(p)])
+        principal = app.state.oauth.principal(issued["access_token"])
+    else:
+        principal = app.state.oauth.principal(pat["token"])
     ctx = principal_var.set(principal)
     try:
         preview = await trading.preview(p, limit(expire_seconds=30), p["scopes"])
@@ -268,3 +271,33 @@ async def test_revocation_while_waiting_for_rate_limit_blocks_wire_request(desk,
         with pytest.raises(PermissionError): await app.state.bybit.request(p, lookup("GET /v5/market/tickers"), {"category": "linear"})
         assert not exchange.calls
     finally: principal_var.reset(ctx)
+
+
+def test_native_bearer_needs_no_oauth_session_and_enforces_key_operations(service):
+    app, client, calls = service
+    demo, real = profile(app), profile(app, "mainnet", "real")
+    wallet = lookup("GET /v5/account/wallet-balance")["id"]
+    pat = parent(app, [binding(demo), binding(real, ["bybit:read"], [wallet])])
+    issued = {"access_token": pat["token"]}
+    assert app.state.oauth.principal(pat["token"])["auth_mode"] == "bearer"
+    assert not app.state.store.list("family")
+    assert len(call(client, issued, "bybit_list_connections")["structuredContent"]["connections"]) == 2
+    assert not call(client, issued, "bybit_get_wallet", connection_id=real["id"], accountType="UNIFIED")["isError"]
+    assert call(client, issued, "bybit_get_tickers", connection_id=real["id"], category="linear")["isError"]
+    assert call(client, issued, "bybit_place_order", category="linear")["isError"]
+    assert call(client, issued, "bybit_cancel_all_orders", connection_id=real["id"], category="linear")["isError"]
+    assert all(r.method == "GET" for r in calls)
+
+
+@pytest.mark.parametrize("change", ["expired", "revoked"])
+def test_native_bearer_expiry_and_revocation_apply_to_next_request(service, change):
+    app, client, _ = service
+    p = profile(app)
+    pat = parent(app, [binding(p, ["bybit:read"])])
+    assert not rpc(client, pat["token"], "bybit_get_profile", {}).json()["result"]["isError"]
+    if change == "revoked":
+        app.state.oauth.tokens.revoke(pat["id"])
+    else:
+        raw = app.state.store.get("authorization_token", pat["id"])
+        app.state.store.put("authorization_token", pat["id"], {**raw, "expires_at": time.time()-1})
+    assert rpc(client, pat["token"], "bybit_get_profile", {}).status_code == 401

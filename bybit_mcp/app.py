@@ -58,7 +58,7 @@ def create_app(settings=None, transport=None):
             await client.close()
             store.conn.close()
 
-    app = FastAPI(title="Bybit V5 MCP", version="0.3.1", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Bybit V5 MCP", version="0.3.2", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings, app.state.store, app.state.bybit, app.state.oauth = settings, store, client, oauth
     app.state.mcp, app.state.get_tools = server, get_tools
     app.state.trading = trading
@@ -161,7 +161,7 @@ def create_app(settings=None, transport=None):
 
     @app.get("/healthz")
     async def health():
-        return JSONResponse({"status": "ok", "service": "bybit-v5-mcp", "version": "0.3.1",
+        return JSONResponse({"status": "ok", "service": "bybit-v5-mcp", "version": "0.3.2",
                              "revision": os.environ.get("SOURCE_COMMIT", "local"), "image_digest": os.environ.get("IMAGE_DIGEST", "")}, headers={"Cache-Control": "no-store"})
 
     @app.get("/readyz")
@@ -209,7 +209,7 @@ def create_app(settings=None, transport=None):
         admin(request)
         profiles = store.list("profile")
         tools = await get_tools()
-        return {"version": "0.3.1", "public_url": settings.public_url, "mcp_url": settings.resource,
+        return {"version": "0.3.2", "public_url": settings.public_url, "mcp_url": settings.resource,
                 "catalog": {"count": CATALOG["count"], "demo_count": sum(e["demo"] for e in ENDPOINTS.values()),
                             "source": CATALOG["source"], "revision": CATALOG["revision"],
                             "rich_schemas": sum(e["schema_source"] == "openapi+markdown" for e in ENDPOINTS.values()),

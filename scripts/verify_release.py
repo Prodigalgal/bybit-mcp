@@ -8,19 +8,20 @@ import urllib.request
 
 
 def get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={"Cache-Control": "no-cache"}), timeout=12) as response:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"Cache-Control": "no-cache", "Accept": "application/json", "User-Agent": "Bybit-MCP-Release-Check/1.0"}), timeout=12) as response:
         return json.load(response)
 
 
 def verify(url, commit, digest, timeout=720):
     deadline = time.monotonic() + timeout
+    last_reason = None
     while time.monotonic() < deadline:
         try:
             health = get(url + "/healthz?release=" + digest[7:])
             if health.get("status") == "ok" and health.get("revision") == commit and health.get("image_digest") == digest:
                 assert get(url + "/readyz")["status"] == "ready"
                 assert get(url + "/.well-known/oauth-protected-resource/mcp")["resource"] == url + "/mcp"
-                request = urllib.request.Request(url + "/mcp", data=b"{}", headers={"Content-Type": "application/json"})
+                request = urllib.request.Request(url + "/mcp", data=b"{}", headers={"Content-Type": "application/json", "User-Agent": "Bybit-MCP-Release-Check/1.0"})
                 try:
                     urllib.request.urlopen(request, timeout=12)
                     raise AssertionError("MCP accepted an unauthenticated request")
@@ -28,8 +29,12 @@ def verify(url, commit, digest, timeout=720):
                     assert error.code == 401 and "resource_metadata=" in error.headers.get("WWW-Authenticate", "")
                 print(json.dumps({"status": "verified", "revision": commit, "image_digest": digest, "public_oauth_metadata": True, "unauthenticated_mcp": 401}))
                 return
-        except (OSError, ValueError, KeyError):
-            pass
+            reason = "waiting for the promoted revision and digest"
+        except (OSError, ValueError, KeyError) as error:
+            reason = type(error).__name__ + (" HTTP " + str(error.code) if isinstance(error, urllib.error.HTTPError) else "")
+        if reason != last_reason:
+            print("Rollout check: " + reason, flush=True)
+            last_reason = reason
         time.sleep(8)
     raise SystemExit("Rollout did not expose the promoted source revision and image digest within the acceptance window")
 

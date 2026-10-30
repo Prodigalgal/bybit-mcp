@@ -7,7 +7,7 @@ A self-hosted Bybit V5 gateway with OAuth-protected Streamable HTTP MCP, an admi
 - Bybit credentials are entered in the admin console and encrypted at rest.
 - Admin-generated authorization Tokens can select multiple environments and exact key connections, with per-connection scopes and operation allowlists. Validity can be unlimited or time-limited.
 - OAuth requires one authorization Token, shows effective permissions, then asks for consent. PKCE, exact redirects, resource binding, rotating refresh and revocation are enforced. Parent Token restrictions apply to derived grants and scheduled tasks.
-- Multi-connection writes require an explicit `connection_id`. Permission reductions apply to existing grants; expanding them requires new consent.
+- Multi-connection writes require an explicit `connection_id`. Permission reductions apply to existing grants; expanding an OAuth grant requires new consent. Direct Bearer requests use the current backend Token policy.
 - Trading supports preview, durable submission identity, limit/market/conditional orders, TP/SL, batch orders, amendments, cancellation and scheduled expiry. Acknowledgement does not prove a fill; reconcile order and execution records.
 
 ## Local setup
@@ -19,7 +19,7 @@ python -m pip install -r requirements.txt
 python -m bybit_mcp.app
 ```
 
-`.env.example` documents configuration; the application reads process environment variables. Preserve the encryption key with a separate secure backup. `/admin` uses the admin login Token; `/mcp` uses derived OAuth access tokens. The admin login Token, authorization Token and Bybit API credentials serve separate purposes.
+`.env.example` documents configuration; the application reads process environment variables. Preserve the encryption key with a separate secure backup. `/admin` uses the admin login Token; `/mcp` accepts the authorization Token directly as Bearer, or a derived OAuth access token. The admin login Token, authorization Token and Bybit API credentials serve separate purposes.
 
 For Demo, create an API key inside the Bybit main site's **Demo Trading** account, save a Demo connection in the console, then generate an authorization Token for that connection. Testnet keys and mainnet keys are separate.
 
@@ -41,3 +41,14 @@ Tests use synthetic credentials and mocked exchange responses. CI never places m
 ## References
 
 [Bybit V5](https://bybit-exchange.github.io/docs/v5/intro) · [Bybit Demo](https://bybit-exchange.github.io/docs/v5/demo) · [OpenAI MCP authentication](https://developers.openai.com/plugins/build/auth) · [MCP authorization](https://modelcontextprotocol.io/specification/latest/basic/authorization)
+
+
+## Direct Bearer access
+
+Generate an authorization Token in the admin console, then configure the MCP client with the Streamable HTTP URL and header:
+
+```text
+Authorization: Bearer bbm_auth_…
+```
+
+No OAuth login is needed for this mode. The same per-key environment, scope, operation, expiry and revocation restrictions apply. OAuth remains available for clients using the authorization-code flow. The administrator login Token is reserved for administration.

@@ -60,6 +60,8 @@ class OAuth:
         return ", ".join(parts)
 
     def principal(self, bearer):
+        if bearer and bearer.startswith("bbm_auth_"):
+            return self.tokens.bearer_principal(bearer)
         grant = self.store.get("access", digest(bearer)) if bearer else None
         if not grant or grant.get("audience") != self.settings.resource or grant.get("issuer") != self.settings.public_url:
             return None

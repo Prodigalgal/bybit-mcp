@@ -26,4 +26,4 @@ def job_authorization(profile):
     principal = principal_var.get()
     if principal is None:
         return None
-    return {k: principal[k] for k in ("parent_token_id", "family", "bindings", "scopes", "default_profile_id", "multiple_connections")}
+    return {"auth_mode": principal.get("auth_mode", "oauth"), **{k: principal[k] for k in ("parent_token_id", "family", "bindings", "scopes", "default_profile_id", "multiple_connections")}}

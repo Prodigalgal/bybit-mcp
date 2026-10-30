@@ -56,7 +56,7 @@ def object_schema(props=None, required=None):
 
 
 def create_mcp(settings, client, oauth, trading=None):
-    server = Server("bybit-v5-mcp", version="0.3.1", instructions=(
+    server = Server("bybit-v5-mcp", version="0.3.2", instructions=(
         "Bybit V5 gateway. Check bybit_get_profile for account environment and restrictions. "
         "Search/describe endpoints for the full catalog. Demo is separate from testnet and mainnet. "
         "Verify exact instruments before trading. Order acknowledgements do not prove fills; query orders/executions. "
@@ -110,7 +110,7 @@ def create_mcp(settings, client, oauth, trading=None):
     async def call_tool(name, arguments):
         principal = principal_var.get()
         if not principal:
-            return t.CallToolResult(isError=True, content=[t.TextContent(type="text", text="OAuth authentication required")],
+            return t.CallToolResult(isError=True, content=[t.TextContent(type="text", text="Bearer authentication required: use an authorization Token or OAuth access token")],
                                     _meta={"mcp/www_authenticate": [oauth.challenge(error="invalid_token")]})
         arguments = dict(arguments or {})
         selected = arguments.pop("connection_id", None)
@@ -221,7 +221,7 @@ class ProtectedMCP:
         auth = headers.get(b"authorization", b"").decode()
         principal = self.oauth.principal(auth[7:]) if auth.lower().startswith("bearer ") else None
         if not principal:
-            response = JSONResponse({"error": "invalid_token", "error_description": "Connect with OAuth to access this MCP resource"}, 401,
+            response = JSONResponse({"error": "invalid_token", "error_description": "Use an authorization Token as Bearer, or connect with OAuth"}, 401,
                                     headers={"WWW-Authenticate": self.oauth.challenge(error="invalid_token"), "Cache-Control": "no-store"})
             await response(scope, receive, send)
             return

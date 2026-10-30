@@ -124,7 +124,17 @@ class AuthorizationTokens:
         ref = self.store.get("authorization_lookup", digest(secret))
         return self.active(ref["token_id"]) if ref else None
 
+    def bearer_principal(self, secret):
+        parent = self.authenticate(secret)
+        if not parent:
+            return None
+        return self.effective({"auth_mode": "bearer", "parent_token_id": parent["id"], "family": None,
+            "bindings": parent["bindings"], "scopes": sorted({s for b in parent["bindings"] for s in b["scopes"]}),
+            "default_profile_id": parent["default_profile_id"], "multiple_connections": len(parent["bindings"]) > 1})
+
     def effective(self, grant, require_family=True):
+        if grant.get("auth_mode") == "bearer":
+            require_family = False
         parent = self.active(grant.get("parent_token_id", ""))
         if not parent:
             return None
