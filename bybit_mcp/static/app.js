@@ -86,6 +86,14 @@ function environmentLabel(env) {
     env
   );
 }
+function connectionLabel(p) {
+  return p.public_only ? "主网公开数据 · 免 Key" : environmentLabel(p.environment);
+}
+function connectionSummary(p) {
+  return p.public_only
+    ? "行情来源：主网 · 无账户及交易权限"
+    : `行情来源：${p.market_data_environment || (p.environment === "demo" ? "mainnet" : p.environment)} · Key 环境：${environmentLabel(p.environment)}`;
+}
 function profile(id) {
   return state.profiles.find((p) => p.id === id);
 }
@@ -163,6 +171,7 @@ async function loadStatus() {
     l.append(input, document.createTextNode(label));
     scopes.append(l);
   }
+  updateConnectionMode();
 }
 async function loadProfiles() {
   state.profiles = (await api("profiles")).items;
@@ -170,13 +179,13 @@ async function loadProfiles() {
   $("#metric-profiles").textContent = state.profiles.length;
   const list = clear($("#profiles-list"));
   if (!state.profiles.length)
-    empty(list, "还没有账户连接", "添加一个 Demo 账户，即可开始验证模拟交易。");
+    empty(list, "还没有连接", "可先创建免 Key 的主网行情连接，或添加对应环境的 API Key。");
   for (const p of state.profiles) {
     const card = node("div", "connection-card"),
       head = node("div", "connection-head");
     head.append(
       node("strong", "", p.name),
-      node("span", "pill " + p.environment, environmentLabel(p.environment)),
+      node("span", "pill " + (p.public_only ? "" : p.environment), connectionLabel(p)),
     );
     card.append(
       head,
@@ -185,11 +194,12 @@ async function loadProfiles() {
         "",
         p.key_hint + " · " + (p.enabled ? "连接已启用" : "连接已停用"),
       ),
-      node("p", "", p.scopes.join(" / ")),
+      node("p", "", connectionSummary(p)),
+      node("p", "", p.public_only ? "仅主网公开数据" : p.scopes.join(" / ")),
       node(
         "p",
         "",
-        p.usdt_only ? "仅允许 USDT 合约交易" : "按 Bybit API 权限开放产品",
+        p.public_only ? "账户和交易操作需另选 API Key 连接" : p.usdt_only ? "仅允许 USDT 合约交易" : "按 Bybit API 权限开放产品",
       ),
     );
     const actions = node("div", "connection-actions");
@@ -199,7 +209,7 @@ async function loadProfiles() {
         "测试连接",
         () =>
           api(`profiles/${p.id}/test`, { method: "POST" }).then(() =>
-            toast("账户验证通过"),
+            toast(p.public_only ? "主网公开数据连接通过" : "账户验证通过"),
           ),
       ],
       [
@@ -216,7 +226,7 @@ async function loadProfiles() {
           if (
             await confirmAction(
               "删除账户连接",
-              `删除「${p.name}」并撤销其 OAuth 授权？该账户的到期撤单将停止执行，请先处理现有委托。`,
+              p.public_only ? `删除「${p.name}」并撤销其授权？` : `删除「${p.name}」并撤销其 OAuth 授权？该账户的到期撤单将停止执行，请先处理现有委托。`,
             )
           ) {
             await api("profiles/" + p.id, { method: "DELETE" });
@@ -239,7 +249,7 @@ async function loadProfiles() {
     const enabled = state.profiles.filter((p) => p.enabled);
     const choices =
       select.id === "trade-profile"
-        ? enabled.filter((p) => p.scopes.includes("bybit:trade"))
+        ? enabled.filter((p) => !p.public_only && p.scopes.includes("bybit:trade"))
         : enabled;
     if (!choices.length) {
       const o = node("option", "", "请先添加账户连接");
@@ -250,7 +260,7 @@ async function loadProfiles() {
       const o = node(
         "option",
         "",
-        `${p.name} · ${environmentLabel(p.environment)}`,
+        `${p.name} · ${connectionLabel(p)}`,
       );
       o.value = p.id;
       select.append(o);
@@ -366,17 +376,35 @@ $("#copy-url").onclick = () =>
 $("#refresh-profiles").onclick = () =>
   busy($("#refresh-profiles"), loadProfiles);
 $("#refresh-audit").onclick = () => busy($("#refresh-audit"), loadAccess);
-$("#connection-env").onchange = () => {
-  const env = $("#connection-env").value,
+function updateConnectionMode() {
+  const publicOnly = $("#connection-mode").value === "public";
+  const env = publicOnly ? "mainnet" : $("#connection-env").value,
     n = $("#connection-note");
+  $("#connection-environment-field").hidden = publicOnly;
+  $("#connection-env").disabled = publicOnly;
+  $("#connection-key-fields").hidden = publicOnly;
+  for (const field of [$("#connection-key"), $("#connection-secret")]) {
+    field.disabled = publicOnly;
+    field.required = !publicOnly;
+  }
+  $('#connection-form [name="usdt_only"]').disabled = publicOnly;
+  $$('#scope-options input').forEach((input) => {
+    input.disabled = publicOnly;
+    input.closest("label").hidden = publicOnly && input.value !== "bybit:read";
+    input.closest("label").lastChild.textContent = publicOnly ? "主网公开数据" : state.status.scopes[input.value];
+    if (publicOnly) input.checked = input.value === "bybit:read";
+  });
+  $("#save-connection").textContent = publicOnly ? "保存主网行情连接 →" : "验证并保存 Key 连接 →";
   n.textContent =
-    env === "mainnet"
+    publicOnly ? "免 Key 连接使用主网公开数据，仅用于行情分析。账户与交易操作需要 API Key。" : env === "mainnet"
       ? "当前为实盘环境，交易与资金操作会影响真实资产，请检查密钥权限。"
       : env === "testnet"
         ? "请使用 testnet.bybit.com 创建的测试网密钥。"
         : "请在 Bybit 主站切换到 Demo Trading，再创建独立 API 密钥。";
-  n.classList.toggle("danger", env === "mainnet");
-};
+  n.classList.toggle("danger", !publicOnly && env === "mainnet");
+}
+$("#connection-env").onchange = updateConnectionMode;
+$("#connection-mode").onchange = updateConnectionMode;
 $("#connection-form").onsubmit = (e) => {
   e.preventDefault();
   busy(e.submitter, async () => {
@@ -384,8 +412,16 @@ $("#connection-form").onsubmit = (e) => {
       data = Object.fromEntries(f);
     data.scopes = f.getAll("scopes");
     data.usdt_only = f.has("usdt_only");
+    data.public_only = data.connection_mode === "public";
+    delete data.connection_mode;
+    if (data.public_only) {
+      data.environment = "mainnet";
+      data.scopes = ["bybit:read"];
+      delete data.api_key;
+      delete data.api_secret;
+    }
     if (
-      data.environment === "mainnet" &&
+      !data.public_only && data.environment === "mainnet" &&
       !(await confirmAction(
         "保存实盘账户",
         "此连接指向 Mainnet，请确认所勾选的交易和资金权限。",
@@ -395,7 +431,7 @@ $("#connection-form").onsubmit = (e) => {
     await api("profiles", { method: "POST", body: JSON.stringify(data) });
     $("#connection-key").value = "";
     $("#connection-secret").value = "";
-    toast("连接已验证并加密保存");
+    toast(data.public_only ? "主网公开行情连接已保存" : "连接已验证并加密保存");
     await loadProfiles();
   });
 };
@@ -437,7 +473,7 @@ async function loadAccess() {
         "strong",
         "",
         g.bindings
-          ?.map((b) => environmentLabel(b.environment) + " · " + b.name)
+          ?.map((b) => connectionLabel(b) + " · " + b.name)
           .join(" / ") ||
           profile(g.profile)?.name ||
           "旧版授权（请重新连接）",
@@ -548,15 +584,16 @@ function openConnectionSettings(p) {
   editingConnection = p.id;
   $("#settings-name").value = p.name;
   $("#settings-usdt").checked = p.usdt_only;
-  $("#settings-usdt").disabled = p.environment === "demo";
+  $("#settings-usdt").disabled = p.public_only || p.environment === "demo";
   const scopes = clear($("#settings-scopes"));
   for (const [scope, label] of Object.entries(state.status.scopes)) {
+    if (p.public_only && scope !== "bybit:read") continue;
     const row = node("label", "check"),
       input = node("input");
     input.type = "checkbox";
     input.value = scope;
     input.checked = p.scopes.includes(scope);
-    row.append(input, document.createTextNode(label));
+    row.append(input, document.createTextNode(p.public_only ? "主网公开数据" : label));
     scopes.append(row);
   }
   $("#connection-settings-dialog").showModal();

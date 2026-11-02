@@ -18,7 +18,7 @@ window.AuthorizationTokens = (() => {
         empty(
           list,
           "尚未生成授权 Token",
-          "先在账户连接保存密钥，再生成限定环境与操作的 Token。",
+          "先创建免 Key 行情连接或保存账户 Key，再选择允许的连接与操作。",
         );
       for (const value of tokens.sort((a, b) => b.created_at - a.created_at)) {
         const card = node("article", "panel token-card");
@@ -43,7 +43,7 @@ window.AuthorizationTokens = (() => {
             node(
               "strong",
               "",
-              environmentLabel(binding.environment) + " · " + binding.name,
+              connectionLabel(binding) + " · " + binding.name,
             ),
             node("code", "", binding.key_hint),
           );
@@ -51,7 +51,7 @@ window.AuthorizationTokens = (() => {
             node(
               "p",
               "small",
-              binding.scopes.map((s) => state.status.scopes[s]).join("、"),
+              binding.public_only ? "主网公开数据 · 无账户和交易权限" : binding.scopes.map((s) => state.status.scopes[s]).join("、"),
             ),
           );
           if (binding.operations === null)
@@ -120,7 +120,7 @@ window.AuthorizationTokens = (() => {
         const option = node(
           "option",
           "",
-          environmentLabel(r.profile.environment) + " · " + r.profile.name,
+          connectionLabel(r.profile) + " · " + r.profile.name,
         );
         option.value = r.profile.id;
         select.append(option);
@@ -139,11 +139,12 @@ window.AuthorizationTokens = (() => {
     select.setAttribute("aria-label", "允许 " + profile.name);
     label.append(
       select,
-      document.createTextNode(profile.name + " · " + profile.key_hint),
+      document.createTextNode(profile.name + " · " + connectionLabel(profile)),
     );
     legend.append(label);
     card.append(legend);
     const content = node("div", "token-binding-content");
+    content.append(node("p", "small muted", connectionSummary(profile)));
     content.hidden = !select.checked;
     const scopes = node("div", "token-scopes"),
       scopeInputs = [];
@@ -155,18 +156,18 @@ window.AuthorizationTokens = (() => {
       check.checked = binding
         ? binding.scopes.includes(scope)
         : scope === "bybit:read";
-      item.append(check, document.createTextNode(state.status.scopes[scope]));
+      item.append(check, document.createTextNode(profile.public_only ? "主网公开数据" : state.status.scopes[scope]));
       scopes.append(item);
       scopeInputs.push(check);
     }
-    const preset = node("button", "secondary", "常用 USDT 交易权限");
+    const preset = node("button", "secondary", profile.public_only ? "主网公开数据权限" : "常用 USDT 交易权限");
     preset.type = "button";
     content.append(scopes, preset);
     const modeLabel = node("label", "", "允许操作"),
       mode = node("select");
     mode.setAttribute("aria-label", profile.name + " 操作模式");
     for (const [key, title] of [
-      ["all", "所选权限类别内的全部操作"],
+      ["all", profile.public_only ? "全部主网公开数据" : "所选权限类别内的全部操作"],
       ["selected", "只允许选中的操作"],
     ]) {
       const option = node("option", "", title);
@@ -195,6 +196,7 @@ window.AuthorizationTokens = (() => {
       const choices = operations.filter(
         (o) =>
           allowed.has(o.scope) &&
+          (!profile.public_only || o.public) &&
           (profile.environment !== "demo" || o.demo) &&
           (!query ||
             (o.title + " " + o.path + " " + o.id)
@@ -237,12 +239,19 @@ window.AuthorizationTokens = (() => {
       );
       mode.value = "selected";
       chosen.clear();
+      if (profile.public_only) {
+        operations.filter((o) => o.public).forEach((o) => chosen.add(o.id));
+        renderOperations();
+        return;
+      }
       const paths = new Set([
         "/v5/market/time",
         "/v5/market/instruments-info",
         "/v5/market/tickers",
         "/v5/market/kline",
         "/v5/market/orderbook",
+        "/v5/market/open-interest",
+        "/v5/market/funding/history",
         "/v5/account/info",
         "/v5/account/wallet-balance",
         "/v5/position/list",
@@ -301,12 +310,12 @@ window.AuthorizationTokens = (() => {
     }
     expiryChanged();
     const container = clear($("#token-bindings"));
-    for (const env of ["demo", "testnet", "mainnet"]) {
+    for (const env of ["public", "demo", "testnet", "mainnet"]) {
       const profiles = state.profiles.filter(
-        (p) => p.environment === env && p.enabled,
+        (p) => p.enabled && (env === "public" ? p.public_only : !p.public_only && p.environment === env),
       );
       if (!profiles.length) continue;
-      container.append(node("h3", "token-env-heading", environmentLabel(env)));
+      container.append(node("h3", "token-env-heading", env === "public" ? "主网公开数据（免 Key）" : environmentLabel(env)));
       for (const profile of profiles) {
         const { card, row } = connectionRow(
           profile,
@@ -356,7 +365,7 @@ window.AuthorizationTokens = (() => {
               operations: operationsAllowed,
             };
           });
-        if (!bindings.length) throw new Error("至少选择一个密钥连接");
+        if (!bindings.length) throw new Error("至少选择一个行情或 Key 连接");
         const expiry = $("#token-expiry").value,
           expires =
             expiry === "unlimited"

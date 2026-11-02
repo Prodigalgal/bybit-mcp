@@ -26,6 +26,24 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Read pinned official docs revision
+        id: docs
+        shell: python
+        run: |
+          import json, os, re
+          from pathlib import Path
+          revision = json.loads(Path('bybit_mcp/catalog.json').read_text())['revision']
+          assert re.fullmatch(r'[0-9a-f]{40}', revision)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'revision={revision}\n')
+      - name: Check out official API documentation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: bybit-exchange/docs
+          ref: ${{ steps.docs.outputs.revision }}
+          path: .cache/bybit-docs
+          persist-credentials: false
+      - run: python scripts/check_catalog.py --source .cache/bybit-docs
       - run: python -m pytest -q --tb=short
 
   release:

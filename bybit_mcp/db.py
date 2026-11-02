@@ -90,9 +90,21 @@ class Store:
         value = self.get("profile", ident)
         return {"id": ident, **value} if value else None
 
+    def save_public_profile(self, name="主网公开行情"):
+        ident = digest("public:mainnet")[:24]
+        previous = self.get("profile", ident) or {}
+        value = {"name": name[:100] or "主网公开行情", "environment": "mainnet", "public_only": True,
+                 "key_hint": "免 Key", "scopes": ["bybit:read"], "usdt_only": False, "enabled": True,
+                 "created_at": previous.get("created_at", time.time()), "updated_at": time.time()}
+        self.put("profile", ident, value)
+        return {"id": ident, **value}
+
     @staticmethod
     def public_profile(p):
-        return {k: v for k, v in p.items() if k not in {"api_key", "api_secret"}}
+        public_only = bool(p.get("public_only"))
+        return {**{k: v for k, v in p.items() if k not in {"api_key", "api_secret"}}, "public_only": public_only,
+                "account_environment": None if public_only else p["environment"],
+                "market_data_environment": "mainnet" if p["environment"] == "demo" else p["environment"]}
 
     def audit(self, profile, action, outcome, detail=""):
         with self.lock, self.conn:

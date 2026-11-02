@@ -33,13 +33,14 @@
           <h2>{{binding.name}}</h2>
           <p>
             <span
-              class="badge {{'danger' if binding.environment == 'mainnet' else ''}}"
-              >{{binding.environment}}</span
+              class="badge {{'danger' if binding.environment == 'mainnet' and not binding.public_only else ''}}"
+              >{{'主网公开数据 · 免 Key' if binding.public_only else binding.environment}}</span
             >
             <code>{{binding.key_hint}}</code>
           </p>
+          <p class="small">行情来源：{{binding.market_data_environment}} · {% if binding.public_only %}无账户及交易权限{% else %}Key 环境：{{binding.account_environment}}{% endif %}</p>
           {% for scope in binding.scopes %}
-          <p class="small">{{scope_labels[scope]}}</p>
+          <p class="small">{{'主网公开数据' if binding.public_only else scope_labels[scope]}}</p>
           {% endfor %} {% if binding.operations is none %}
           <p class="small muted">可用操作：上述权限类别内的全部操作</p>
           {% endif %}
