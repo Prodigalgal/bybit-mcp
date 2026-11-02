@@ -16,12 +16,38 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from jsonschema import Draft202012Validator
 
+from . import __version__
 from .catalog import BY_PATH
 from .security import enforce
 
 HOSTS = {"mainnet": "https://api.bybit.com", "testnet": "https://api-testnet.bybit.com", "demo": "https://api-demo.bybit.com"}
 WS_HOSTS = {"mainnet": "wss://stream.bybit.com", "testnet": "wss://stream-testnet.bybit.com", "demo": "wss://stream-demo.bybit.com"}
 SECRET_FIELDS = {"secret", "apisecret", "apikey", "secretkey", "password", "privatekey", "signature", "x-bapi-sign", "x-bapi-api-key"}
+
+
+def market_environment(account_environment):
+    return "mainnet" if account_environment == "demo" else account_environment
+
+
+def response_context(environment, source, host, *, public=False, as_of=None, public_only=False):
+    context = {"environment": environment, "account_environment": None if public_only else environment,
+               "public_only": public_only,
+               "data_environment": source, "upstream_host": host,
+               "retrieved_at_ms": int(time.time() * 1000)}
+    if public:
+        context["market_data_environment"] = source
+    if as_of is not None:
+        context["as_of_ms"] = int(as_of)
+    return context
+
+
+def batch_results(params, response):
+    info = response.get("retExtInfo", {}).get("list", [])
+    return [{"index": i, "order_link_id": order.get("orderLinkId"), "order_id": order.get("orderId"),
+             "accepted": int(info[i].get("code", 0)) == 0 if i < len(info) else None,
+             "code": info[i].get("code") if i < len(info) else None,
+             "message": info[i].get("msg", "") if i < len(info) else "Check individual order status"}
+            for i, order in enumerate(params["request"])]
 
 def redact(value):
     if isinstance(value, dict):
@@ -86,8 +112,11 @@ class BybitClient:
         if env not in HOSTS:
             raise ValueError("Unknown Bybit environment")
         public = endpoint["public"]
+        if profile.get("public_only") and not public:
+            raise PermissionError("This keyless connection only permits mainnet public data; private operations require an API-key connection")
         # Demo public streams/quotes share mainnet; signed calls NEVER fall back.
-        host = HOSTS["mainnet" if env == "demo" and public else env]
+        source = market_environment(env) if public else env
+        host = HOSTS[source]
         method, path = endpoint["method"], endpoint["path"]
         if method == "GET":
             def val(v):
@@ -98,7 +127,7 @@ class BybitClient:
         else:
             body = json.dumps(params, separators=(",", ":"), ensure_ascii=False)
             payload, url = body, host + path
-        headers = {"Content-Type": "application/json", "User-Agent": "Bybit-MCP/0.3.2"}
+        headers = {"Content-Type": "application/json", "User-Agent": "Bybit-MCP/" + __version__}
         if not public:
             offset = await self.clock(env)
             key, secret = self.store.decrypt(profile["api_key"]), self.store.decrypt(profile["api_secret"])
@@ -152,13 +181,16 @@ class BybitClient:
                 extra["sensitive_result"] = {"id": ident, "expires_in": 600,
                     "download_url": self.settings.public_url + "/admin/api/secret-results/" + ident,
                     "note": "New API credentials are encrypted. The service owner can download once in the admin console within 10 minutes. No connection signing credentials are returned."}
-        return {"environment": env, "operation": endpoint["id"], "data": redact(result), **extra,
+        return {**response_context(env, source, host, public=public, as_of=result.get("time"), public_only=profile.get("public_only", False)),
+                "operation": endpoint["id"], "data": redact(result), **extra,
                 "rate_limit": {h: response.headers[h] for h in ["X-Bapi-Limit", "X-Bapi-Limit-Status", "X-Bapi-Limit-Reset-Timestamp"] if h in response.headers}}
 
     async def request(self, profile, endpoint, params, granted_scopes=None):
         enforce(profile, endpoint["id"], endpoint["scope"])
         if not profile.get("enabled", True):
             raise PermissionError("Connection is disabled")
+        if profile.get("public_only") and not endpoint["public"]:
+            raise PermissionError("This keyless connection only permits mainnet public data; private operations require an API-key connection")
         scope = endpoint["scope"]
         allowed = set(profile.get("scopes", []))
         if granted_scopes is not None:
@@ -177,6 +209,10 @@ class BybitClient:
         if any(k.lower().startswith("x-bapi-") for k in params):
             raise ValueError("Signing headers are managed by the service")
         mutation = endpoint["method"] != "GET"
+        if (profile["environment"] == "demo" and endpoint["path"] in {
+                "/v5/order/create-batch", "/v5/order/amend-batch", "/v5/order/cancel-batch"}
+                and params.get("category") not in {"linear", "option"}):
+            raise ValueError("Bybit Demo batch orders support linear and option only; no mainnet fallback is allowed.")
         if "request" in params and (not isinstance(params["request"], list) or not all(isinstance(o, dict) for o in params["request"])):
             raise ValueError("request must be an array of objects")
         if profile.get("usdt_only") and scope == "bybit:trade":
@@ -211,11 +247,7 @@ class BybitClient:
                 result["submitted_order_links"] = [o["orderLinkId"] for o in params.get("request", [params])]
                 result["note"] = "Accepted by API is not a fill confirmation; check orders, executions or private streams."
             if endpoint["path"] in {"/v5/order/create-batch", "/v5/order/amend-batch", "/v5/order/cancel-batch"}:
-                info = result["data"].get("retExtInfo", {}).get("list", [])
-                result["batch_results"] = [{"index": i, "order_link_id": o.get("orderLinkId"), "order_id": o.get("orderId"),
-                    "accepted": int(info[i].get("code", 0)) == 0 if i < len(info) else None,
-                    "code": info[i].get("code") if i < len(info) else None,
-                    "message": info[i].get("msg", "") if i < len(info) else "Check individual order status"} for i, o in enumerate(params["request"])]
+                result["batch_results"] = batch_results(params, result["data"])
             return result
         except BybitError as e:
             self.store.audit(profile["id"], endpoint["id"], "unknown" if e.ambiguous else "error", str(e.code))
@@ -240,6 +272,8 @@ class BybitClient:
                 raise ValueError(f"Invalid {field}") from e
 
     async def websocket(self, profile, channel, topics, seconds=3, max_messages=10, category="linear"):
+        if profile.get("public_only") and channel != "public":
+            raise PermissionError("Private streams require an API-key connection")
         enforce(profile, "ws:" + channel, "bybit:read")
         if not 1 <= seconds <= 15 or not 1 <= max_messages <= 50 or not 1 <= len(topics) <= 10:
             raise ValueError("Use 1-15 seconds, 1-50 messages and 1-10 topics")
@@ -252,7 +286,8 @@ class BybitClient:
         elif any(not re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", t) for t in topics):
             raise ValueError("Invalid public topic")
         env = profile["environment"]
-        host = WS_HOSTS["mainnet" if env == "demo" and channel == "public" else env]
+        source = market_environment(env) if channel == "public" else env
+        host = WS_HOSTS[source]
         url = host + ("/v5/private" if channel == "private" else "/v5/public/" + category)
         messages = []
         async with websockets.connect(url, open_timeout=10, max_size=2**21, proxy=self.settings.proxy or None) as ws:
@@ -279,9 +314,13 @@ class BybitClient:
                 except asyncio.TimeoutError:
                     break
         enforce(profile, "ws:" + channel, "bybit:read")
-        return {"environment": env, "channel": channel, "messages": messages, "note": "Bounded snapshot; an empty private stream can mean no account events occurred."}
+        as_of = max((int(message["ts"]) for message in messages if message.get("ts") is not None), default=None)
+        return {**response_context(env, source, host, public=channel == "public", as_of=as_of, public_only=profile.get("public_only", False)),
+                "channel": channel, "messages": messages, "note": "Bounded snapshot; an empty private stream can mean no account events occurred."}
 
     async def websocket_trade(self, profile, operation, params, scopes):
+        if profile.get("public_only"):
+            raise PermissionError("Trading requires an API-key connection")
         if profile["environment"] == "demo":
             raise ValueError("Bybit Demo does not support WS Trade. Use REST trading tools.")
         mapping = {"order.create": "create", "order.amend": "amend", "order.cancel": "cancel", "order.create-batch": "create-batch", "order.amend-batch": "amend-batch", "order.cancel-batch": "cancel-batch"}
@@ -313,19 +352,29 @@ class BybitClient:
             await ws.send(json.dumps({"op": "auth", "args": [self.store.decrypt(profile["api_key"]), expires, signature]}))
             ack = json.loads(await asyncio.wait_for(ws.recv(), 8))
             if ack.get("retCode") != 0:
-                raise BybitError("WS Trade authentication failed")
+                raise BybitError("WS Trade authentication failed", ack.get("retCode"))
             req_id = uuid.uuid4().hex
             payload = {"reqId": req_id, "header": {"X-BAPI-TIMESTAMP": str(int(time.time() * 1000 + await self.clock(profile["environment"]))), "X-BAPI-RECV-WINDOW": "5000"}, "op": operation, "args": [params]}
             enforce(profile, "ws:trade", "bybit:trade")
             enforce(profile, endpoint["id"], endpoint["scope"])
-            await ws.send(json.dumps(payload))
             try:
+                await ws.send(json.dumps(payload))
                 while True:
                     answer = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if answer.get("reqId") == req_id:
                         break
             except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed) as e:
                 self.store.audit(profile["id"], operation, "unknown", req_id)
-                raise BybitError("WS Trade response not received; check orderLinkId before retrying", ambiguous=True) from e
+                error = BybitError("WS Trade response not received; check orderLinkId before retrying", ambiguous=True)
+                error.order_links = [o.get("orderLinkId") for o in params.get("request", [params]) if o.get("orderLinkId")]
+                raise error from e
         self.store.audit(profile["id"], operation, str(answer.get("retCode")), req_id)
-        return {"environment": profile["environment"], "data": redact(answer), "submitted_order_links": [o.get("orderLinkId") for o in params.get("request", [params])]}
+        result = {**response_context(profile["environment"], profile["environment"], WS_HOSTS[profile["environment"]]),
+                  "state": "accepted" if answer.get("retCode") == 0 else "rejected", "data": redact(answer),
+                  "submitted_order_links": [o.get("orderLinkId") for o in params.get("request", [params])],
+                  "note": "Accepted by API is not a fill confirmation; check orders, executions or private streams."}
+        if "request" in params and answer.get("retCode") == 0:
+            result["batch_results"] = batch_results(params, answer)
+            if any(row["accepted"] is False for row in result["batch_results"]):
+                result["state"] = "partially_rejected"
+        return result

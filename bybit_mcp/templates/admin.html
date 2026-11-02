@@ -67,7 +67,7 @@
             </article>
             <article class="metric">
               <span>账户连接</span><strong id="metric-profiles">—</strong
-              ><small>Demo / Testnet / Mainnet</small>
+              ><small>主网公开数据 / Demo / Testnet / Mainnet</small>
             </article>
             <article class="metric">
               <span>有效 OAuth 授权</span><strong id="metric-grants">—</strong
@@ -90,7 +90,7 @@
               </div>
               <div class="steps">
                 <div><b>01</b><span>添加 MCP 地址</span></div>
-                <div><b>02</b><span>选择账户环境</span></div>
+                <div><b>02</b><span>选择行情或 Key 连接</span></div>
                 <div><b>03</b><span>授权所需权限</span></div>
               </div>
               <a href="/docs" class="accent-link" target="_blank" rel="noopener"
@@ -129,32 +129,37 @@
           <div class="page-heading">
             <div>
               <div class="eyebrow">ACCOUNT CONNECTIONS</div>
-              <h1>账户连接</h1>
-              <p>按环境管理密钥和权限，使用对应账户生成的 API Key。</p>
+              <h1>行情与账户连接</h1>
+              <p>免 Key 访问主网公开数据；账户与交易操作使用对应环境的 Key。</p>
             </div>
           </div>
           <div class="split-grid">
             <article class="panel">
               <div class="panel-heading">
                 <h2>添加连接</h2>
-                <span class="pill amber">默认 DEMO</span>
+                <span class="pill amber">公开行情 / API KEY</span>
               </div>
               <form id="connection-form">
+                <label for="connection-mode">连接方式</label>
+                <select id="connection-mode" name="connection_mode">
+                  <option value="public">主网公开数据（免 Key）</option>
+                  <option value="key">API Key 账户（主网 / Demo / Testnet）</option>
+                </select>
                 <div class="form-grid">
                   <div>
                     <label for="connection-name">连接名称</label
                     ><input
                       id="connection-name"
                       name="name"
-                      placeholder="我的模拟账户"
+                      placeholder="主网公开行情"
                       required
                       maxlength="100"
                     />
                   </div>
-                  <div>
+                  <div id="connection-environment-field" hidden>
                     <label for="connection-env">账户环境</label
                     ><select id="connection-env" name="environment">
-                      <option value="demo">Demo 模拟交易（推荐）</option>
+                      <option value="demo">Demo 模拟交易</option>
                       <option value="testnet">
                         Testnet 测试网（开发调试）
                       </option>
@@ -163,8 +168,9 @@
                   </div>
                 </div>
                 <div class="alert" id="connection-note">
-                  请在 Bybit 主站切换到 Demo Trading，再创建独立 API 密钥。
+                  免 Key 连接使用主网公开数据，仅用于行情分析。
                 </div>
+                <div id="connection-key-fields" hidden>
                 {% if outbound_ip %}
                 <p class="small muted">
                   如在 Bybit 绑定 IP，请填写服务出口
@@ -176,7 +182,6 @@
                   name="api_key"
                   type="password"
                   autocomplete="off"
-                  required
                 /><label for="connection-secret">API Secret / RSA 私钥</label
                 ><textarea
                   id="connection-secret"
@@ -184,26 +189,26 @@
                   rows="2"
                   class="secret-field"
                   autocomplete="off"
-                  required
                   spellcheck="false"
                 ></textarea
                 ><label class="check"
                   ><input type="checkbox" name="usdt_only" checked />仅允许 USDT
                   合约交易</label
                 >
+                </div>
                 <div class="section-label">允许的权限</div>
                 <div id="scope-options" class="scope-options"></div>
-                <button class="primary full" type="submit">
-                  验证并保存连接 →
+                <button class="primary full" id="save-connection" type="submit">
+                  保存主网行情连接 →
                 </button>
                 <p class="small muted">
-                  只有通过对应环境的账户验证后才会保存。密钥不会回显，也不会写入审计日志。
+                  免 Key 连接只开放公开数据。API Key 连接需通过所选环境验证，密钥不会回显。
                 </p>
               </form>
             </article>
             <article class="panel">
               <div class="panel-heading">
-                <h2>已连接账户</h2>
+                <h2>已保存连接</h2>
                 <button class="secondary" id="refresh-profiles">刷新</button>
               </div>
               <div id="profiles-list" class="stack"></div>

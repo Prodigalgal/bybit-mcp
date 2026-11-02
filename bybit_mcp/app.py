@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.routing import Route
 
+from . import __version__
 from .bybit import BybitClient, BybitError
 from .assets import install_assets
 from .catalog import CATALOG, ENDPOINTS, lookup, search
@@ -58,7 +59,7 @@ def create_app(settings=None, transport=None):
             await client.close()
             store.conn.close()
 
-    app = FastAPI(title="Bybit V5 MCP", version="0.3.2", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Bybit V5 MCP", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings, app.state.store, app.state.bybit, app.state.oauth = settings, store, client, oauth
     app.state.mcp, app.state.get_tools = server, get_tools
     app.state.trading = trading
@@ -161,7 +162,7 @@ def create_app(settings=None, transport=None):
 
     @app.get("/healthz")
     async def health():
-        return JSONResponse({"status": "ok", "service": "bybit-v5-mcp", "version": "0.3.2",
+        return JSONResponse({"status": "ok", "service": "bybit-v5-mcp", "version": __version__,
                              "revision": os.environ.get("SOURCE_COMMIT", "local"), "image_digest": os.environ.get("IMAGE_DIGEST", "")}, headers={"Cache-Control": "no-store"})
 
     @app.get("/readyz")
@@ -209,10 +210,10 @@ def create_app(settings=None, transport=None):
         admin(request)
         profiles = store.list("profile")
         tools = await get_tools()
-        return {"version": "0.3.2", "public_url": settings.public_url, "mcp_url": settings.resource,
+        return {"version": __version__, "public_url": settings.public_url, "mcp_url": settings.resource,
                 "catalog": {"count": CATALOG["count"], "demo_count": sum(e["demo"] for e in ENDPOINTS.values()),
                             "source": CATALOG["source"], "revision": CATALOG["revision"],
-                            "rich_schemas": sum(e["schema_source"] == "openapi+markdown" for e in ENDPOINTS.values()),
+                            "rich_schemas": sum(e["schema_source"] in {"openapi+markdown", "markdown+openapi"} for e in ENDPOINTS.values()),
                             "groups": sorted(set(e["group"] for e in ENDPOINTS.values()))},
                 "tools": len(tools), "full_endpoint_tools": settings.full_tools, "profiles": len(profiles),
                 "grants": len([f for f in store.list("family") if not f.get("revoked")]), "scopes": SCOPES,
@@ -227,13 +228,21 @@ def create_app(settings=None, transport=None):
     async def add_profile(request: Request):
         admin(request, True)
         data = await json_object(request)
-        env = data.get("environment", "demo")
-        scopes = data.get("scopes", ["bybit:read", "bybit:trade"])
+        public_only = data.get("public_only", False)
+        if not isinstance(public_only, bool):
+            raise ValueError("public_only must be boolean")
+        env = data.get("environment", "mainnet" if public_only else "demo")
+        scopes = data.get("scopes", ["bybit:read"] if public_only else ["bybit:read", "bybit:trade"])
         if not scopes or not set(scopes) <= set(SCOPES):
             raise ValueError("Invalid scopes")
         key, secret = str(data.get("api_key", "")).strip(), str(data.get("api_secret", "")).strip()
-        await client.verify_credentials(env, key, secret)
-        profile = store.save_profile(str(data.get("name", env)), env, key, secret, scopes, env == "demo" or bool(data.get("usdt_only", True)))
+        if public_only:
+            if env != "mainnet" or key or secret or set(scopes) != {"bybit:read"}:
+                raise ValueError("Keyless connections use mainnet public data only, with no API credentials or private permissions")
+            profile = store.save_public_profile(str(data.get("name", "主网公开行情")))
+        else:
+            await client.verify_credentials(env, key, secret)
+            profile = store.save_profile(str(data.get("name", env)), env, key, secret, scopes, env == "demo" or bool(data.get("usdt_only", True)))
         store.audit(profile["id"], "admin.add_connection", "ok")
         return store.public_profile(profile)
 
@@ -257,6 +266,8 @@ def create_app(settings=None, transport=None):
             if not set(data["scopes"]) <= set(SCOPES):
                 raise ValueError("Invalid scopes")
             profile["scopes"] = data["scopes"]
+        if profile.get("public_only") and set(profile["scopes"]) != {"bybit:read"}:
+            raise ValueError("Keyless connections cannot enable private account or trading permissions")
         store.put("profile", ident, profile)
         store.audit(ident, "admin.update_connection", "ok")
         return store.public_profile({"id": ident, **profile})
@@ -277,7 +288,7 @@ def create_app(settings=None, transport=None):
         profile = store.profile(ident)
         if not profile:
             raise HTTPException(404, "Connection not found")
-        return await client.request(profile, lookup("GET /v5/account/info"), {})
+        return await client.request(profile, lookup("GET /v5/market/time" if profile.get("public_only") else "GET /v5/account/info"), {})
 
     @app.get("/admin/api/catalog")
     async def catalog(request: Request, query: str = "", group: str | None = None, demo_only: bool = False, limit: int = 100):

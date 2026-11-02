@@ -4,6 +4,7 @@ import json
 import time
 
 from .catalog import ENDPOINTS, lookup
+from .bybit import market_environment
 from .config import SCOPES
 from .db import digest, token
 
@@ -13,6 +14,10 @@ SPECIAL_OPERATIONS = {
     "ws:trade": ("bybit:trade", "WebSocket 交易（另需对应 REST 操作权限）"),
     "managed:read_orders": ("bybit:read", "读取服务保存的挂单记录"),
 }
+
+
+def public_operations():
+    return {e["id"] for e in ENDPOINTS.values() if e["public"]} | {"ws:public"}
 OPERATION_TITLES = {
     "/v5/market/time": "读取服务器时间", "/v5/market/instruments-info": "读取产品规格", "/v5/market/tickers": "读取最新行情",
     "/v5/market/kline": "读取 K 线", "/v5/market/orderbook": "读取订单簿", "/v5/account/info": "读取账户信息",
@@ -62,6 +67,10 @@ class AuthorizationTokens:
                 ops = sorted({o if o in SPECIAL_OPERATIONS else lookup(o)["id"] for o in ops})
                 if any(self.operation_scope(o) not in scopes for o in ops):
                     raise ValueError("Operation exceeds selected scopes")
+            if profile.get("public_only"):
+                if set(scopes) != {"bybit:read"} or (ops is not None and not set(ops) <= public_operations()):
+                    raise ValueError("Keyless connections only authorize public market data")
+                ops = sorted(public_operations() if ops is None else ops)
             normalized.append({"profile_id": ident, "environment": profile["environment"], "scopes": sorted(set(scopes)), "operations": ops})
             seen.add(ident)
         expires = value.get("expires_at")
@@ -159,6 +168,9 @@ class AuthorizationTokens:
             ops = sorted(set.intersection(*restrictions)) if restrictions else None
             if ops is not None:
                 ops = [o for o in ops if self.operation_scope(o) in scopes]
+            if profile.get("public_only"):
+                scopes = [scope for scope in scopes if scope == "bybit:read"]
+                ops = sorted(public_operations() if ops is None else set(ops) & public_operations())
             if scopes and (ops is None or ops):
                 bindings.append({"profile_id": ident, "environment": profile["environment"], "scopes": scopes, "operations": ops})
         if not bindings:
@@ -173,8 +185,11 @@ class AuthorizationTokens:
 
     def describe_binding(self, binding):
         profile = self.store.profile(binding["profile_id"])
-        return {**binding, "name": profile["name"] if profile else "已删除连接", "key_hint": profile["key_hint"] if profile else "", "enabled": bool(profile and profile.get("enabled"))}
+        public_only = bool(profile and profile.get("public_only"))
+        return {**binding, "name": profile["name"] if profile else "已删除连接", "key_hint": profile["key_hint"] if profile else "", "enabled": bool(profile and profile.get("enabled")),
+                "public_only": public_only, "account_environment": None if public_only else binding["environment"],
+                "market_data_environment": market_environment(binding["environment"])}
 
     def operation_catalog(self):
-        return [{"id": e["id"], "title": OPERATION_TITLES.get(e["path"], e["title"]), "scope": e["scope"], "method": e["method"], "path": e["path"], "demo": e["demo"]} for e in ENDPOINTS.values()] + [
-            {"id": k, "title": v[1], "scope": v[0], "method": "SPECIAL", "path": k, "demo": k != "ws:trade"} for k, v in SPECIAL_OPERATIONS.items()]
+        return [{"id": e["id"], "title": OPERATION_TITLES.get(e["path"], e["title"]), "scope": e["scope"], "method": e["method"], "path": e["path"], "demo": e["demo"], "public": e["public"]} for e in ENDPOINTS.values()] + [
+            {"id": k, "title": v[1], "scope": v[0], "method": "SPECIAL", "path": k, "demo": k != "ws:trade", "public": k == "ws:public"} for k, v in SPECIAL_OPERATIONS.items()]

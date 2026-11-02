@@ -8,8 +8,10 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from .bybit import BybitError
+from . import __version__
+from .bybit import BybitError, market_environment
 from .catalog import ENDPOINTS, BY_PATH, lookup, search
+from .market_data import SNAPSHOT_SCHEMA, market_snapshot
 
 from .security import principal_var, enforce
 
@@ -20,6 +22,8 @@ COMMON = {
     "bybit_get_kline": ("GET", "/v5/market/kline"),
     "bybit_get_orderbook": ("GET", "/v5/market/orderbook"),
     "bybit_get_funding_history": ("GET", "/v5/market/funding/history"),
+    "bybit_get_open_interest": ("GET", "/v5/market/open-interest"),
+    "bybit_get_corporate_actions": ("GET", "/v5/market/corporate-action"),
     "bybit_get_wallet": ("GET", "/v5/account/wallet-balance"),
     "bybit_get_positions": ("GET", "/v5/position/list"),
     "bybit_get_open_orders": ("GET", "/v5/order/realtime"),
@@ -55,24 +59,41 @@ def object_schema(props=None, required=None):
     return {"type": "object", "properties": props or {}, "required": required or [], "additionalProperties": False}
 
 
+def result_is_error(result):
+    return (result.get("state") in {"rejected", "unknown", "partially_rejected", "failed"}
+            or result.get("data", {}).get("retCode", 0) != 0
+            or any(row.get("accepted") is False for row in result.get("batch_results", [])))
+
+
 def create_mcp(settings, client, oauth, trading=None):
-    server = Server("bybit-v5-mcp", version="0.3.2", instructions=(
+    server = Server("bybit-v5-mcp", version=__version__, instructions=(
         "Bybit V5 gateway. Check bybit_get_profile for account environment and restrictions. "
         "Search/describe endpoints for the full catalog. Demo is separate from testnet and mainnet. "
+        "Keyless connections only access mainnet public data. Private accounts/trades follow the selected key connection's environment; no keyless trading. Demo public quotes also use mainnet. "
+        "account_environment identifies the account; market_data_environment identifies the quote source. Testnet quotes are testnet data. "
+        "Use bybit_get_market_snapshot for multi-symbol/multi-interval research, and bybit_get_open_interest for OI history. "
         "Verify exact instruments before trading. Order acknowledgements do not prove fills; query orders/executions. "
         "For reviewed USDT orders prefer bybit_preview_usdt_order then bybit_submit_usdt_order and bybit_reconcile_submission; these persist submission identity and optional expiry. Raw V5 placement tools require the caller to keep a stable orderLinkId when reconciling uncertain outcomes. "
         "Never request API secrets in chat; connection credentials are entered only in the backend admin. OAuth uses a separately generated authorization Token. List authorized connections and pass connection_id explicitly for multi-connection trading."))
 
+    def describe_connection(binding):
+        return oauth.tokens.describe_binding(binding)
+
     @server.list_tools()
     async def list_tools():
         tools = [
-            tool("bybit_get_profile", "Read the connected Bybit profile and environment. Contains no API credentials.", object_schema(), scope=[],
-                 meta={"openai/profile": True}, output={"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "environment": {"type": "string"}}, "required": ["id"]}),
+            tool("bybit_get_profile", "Read account_environment, market_data_environment and effective restrictions. Demo accounts use mainnet public quotes; no mainnet API key is needed. Contains no API credentials.", object_schema(), scope=[],
+                 meta={"openai/profile": True}, output={"type": "object", "properties": {
+                     "id": {"type": "string"}, "name": {"type": "string"}, "environment": {"type": "string"},
+                     "account_environment": {"type": ["string", "null"]}, "market_data_environment": {"type": "string"},
+                     "public_only": {"type": "boolean"}}, "required": ["id"]}),
             tool("bybit_list_connections", "List the environments, key connection IDs and effective operations authorized by the current Token. No API secrets are returned.", object_schema(), scope=[]),
             tool("bybit_search_endpoints", "Search the complete official V5 REST catalog. Returned operation IDs work with scoped REST tools. No account request is sent.",
                  object_schema({"query": {"type": "string"}, "group": {"type": "string"}, "demo_only": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 100}}), scope=[]),
             tool("bybit_describe_endpoint", "Get the endpoint method, parameters, required scope, Demo availability and official documentation.",
                  object_schema({"operation": {"type": "string"}}, ["operation"]), scope=[]),
+            tool("bybit_get_market_snapshot", "Collect public tickers, multiple Kline intervals, instruments, OI and funding for up to 8 symbols. Demo uses mainnet quotes without a mainnet key. Returns full observations in structuredContent, with a short text summary. Closed UTC candles only by default; component failures are explicit and do not discard other symbols. No orders/account queries.",
+                 SNAPSHOT_SCHEMA, external=True),
         ]
         for name, scope in ROUTERS.items():
             tools.append(tool(name, f"Call a catalogued V5 endpoint requiring {scope}. Use search/describe first. No arbitrary URLs. Mutations affect the connected account.",
@@ -81,7 +102,7 @@ def create_mcp(settings, client, oauth, trading=None):
         for name, key in COMMON.items():
             e = BY_PATH.get(key)
             if e:
-                tools.append(tool(name, e["title"] + ". " + e["docs"] + (" Demo supported." if e["demo"] else " Demo unavailable."), e["schema"], e["scope"], read=e["method"] == "GET", external=e["public"] or e["scope"] == "bybit:funds"))
+                tools.append(tool(name, e["title"] + ". " + e["docs"] + (" Public data: Demo uses mainnet, no mainnet key required." if e["public"] else " Demo supported." if e["demo"] else " Demo unavailable."), e["schema"], e["scope"], read=e["method"] == "GET", external=e["public"] or e["scope"] == "bybit:funds"))
         stream_schema = object_schema({"topics": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 10},
                                        "seconds": {"type": "integer", "minimum": 1, "maximum": 15}, "max_messages": {"type": "integer", "minimum": 1, "maximum": 50},
                                        "category": {"type": "string", "enum": ["spot", "linear", "inverse", "option", "spread"]}}, ["topics"])
@@ -153,20 +174,25 @@ def create_mcp(settings, client, oauth, trading=None):
                 scopes = binding["scopes"]
                 enforce(profile)
             if name == "bybit_list_connections":
-                result = {"connections": [oauth.tokens.describe_binding(b) for b in bindings], "default_connection_id": principal.get("default_profile_id"),
+                result = {"connections": [describe_connection(b) for b in bindings], "default_connection_id": principal.get("default_profile_id"),
                           "explicit_connection_required_for_mutations": principal.get("multiple_connections", False)}
             elif name == "bybit_get_profile":
                 if not profile and len(bindings) == 1:
                     profile = client.store.profile(bindings[0]["profile_id"])
                 if profile:
                     binding = next(b for b in bindings if b["profile_id"] == profile["id"])
-                    result = {"id": profile["id"], "name": profile["name"], "environment": profile["environment"], "scopes": binding["scopes"], "operations": binding["operations"], "usdt_only": profile["usdt_only"]}
+                    result = {"id": profile["id"], "name": profile["name"], "environment": profile["environment"],
+                              "account_environment": None if profile.get("public_only") else profile["environment"],
+                              "public_only": profile.get("public_only", False), "market_data_environment": market_environment(profile["environment"]),
+                              "scopes": binding["scopes"], "operations": binding["operations"], "usdt_only": profile["usdt_only"]}
                 else:
-                    result = {"id": principal["parent_token_id"], "name": "Bybit 多连接授权", "connections": [oauth.tokens.describe_binding(b) for b in bindings]}
+                    result = {"id": principal["parent_token_id"], "name": "Bybit 多连接授权", "connections": [describe_connection(b) for b in bindings]}
             elif name == "bybit_search_endpoints":
                 result = search(**arguments)
             elif name == "bybit_describe_endpoint":
                 result = lookup(arguments["operation"])
+            elif name == "bybit_get_market_snapshot":
+                result = await market_snapshot(client, profile, arguments, scopes)
             elif name == "bybit_preview_usdt_order" and trading:
                 result = await trading.preview(profile, arguments["draft"], scopes)
             elif name == "bybit_submit_usdt_order" and trading:
@@ -195,8 +221,13 @@ def create_mcp(settings, client, oauth, trading=None):
                 result = await client.websocket_trade(profile, arguments["operation"], arguments["params"], scopes)
             else:
                 raise ValueError("Unknown tool")
-            failed = result.get("state") in {"rejected", "unknown", "partially_rejected"} or any(r.get("accepted") is False for r in result.get("batch_results", []))
-            return t.CallToolResult(content=[t.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))], structuredContent=result, isError=failed)
+            if name == "bybit_get_market_snapshot":
+                summary = {key: result[key] for key in ("account_environment", "market_data_environment", "retrieved_at_ms", "state", "error_count")}
+                summary["symbols"] = [item["symbol"] for item in result["items"]]
+                summary["note"] = "Full observations and per-component errors are in structuredContent."
+            else:
+                summary = result
+            return t.CallToolResult(content=[t.TextContent(type="text", text=json.dumps(summary, ensure_ascii=False))], structuredContent=result, isError=result_is_error(result))
         except (ValueError, PermissionError, BybitError) as e:
             error = {"error": str(e), "code": getattr(e, "code", None), "outcome_unknown": getattr(e, "ambiguous", False), "order_links": getattr(e, "order_links", [])}
             return t.CallToolResult(isError=True, content=[t.TextContent(type="text", text=json.dumps(error, ensure_ascii=False))], structuredContent=error)
